@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CATEGORY_EMOJI } from "./categories";
+import { CATEGORIES, CATEGORY_EMOJI } from "./categories";
 import { createFreshSeedMessages, createFreshSeedPosts } from "./seed";
 import {
   CURRENT_USER,
@@ -20,9 +20,10 @@ import {
   type CreateDraft,
   type MatchingPost,
   type MeetingPlace,
+  type PushNotification,
 } from "./types";
 
-const STORAGE_KEY = "shinwon-half-half-v3";
+const STORAGE_KEY = "shinwon-half-half-v4";
 
 const EMPTY_ALERTS: AlertPrefs = {
   categories: [],
@@ -34,6 +35,7 @@ interface PersistedState {
   messages: ChatMessage[];
   alerts: AlertPrefs;
   unreadChatPostIds: string[];
+  pushNotifications: PushNotification[];
 }
 
 interface MatchingStoreValue {
@@ -46,12 +48,16 @@ interface MatchingStoreValue {
   myOpenPosts: MatchingPost[];
   alerts: AlertPrefs;
   alertCount: number;
+  pushNotifications: PushNotification[];
+  unreadPushCount: number;
   chatNotifyCount: number;
   getPost: (id: string) => MatchingPost | undefined;
   getMessages: (postId: string) => ChatMessage[];
   hasIncomingChat: (postId: string) => boolean;
   isChatUnread: (postId: string) => boolean;
   markChatRead: (postId: string) => void;
+  markPushRead: (id: string) => void;
+  markAllPushRead: () => void;
   createPost: (draft: CreateDraft) => MatchingPost;
   updatePost: (postId: string, draft: CreateDraft) => MatchingPost | undefined;
   deletePost: (postId: string) => void;
@@ -71,6 +77,42 @@ function createId(prefix: string) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function categoryLabel(id: Exclude<CategoryId, "all">) {
+  return CATEGORIES.find((item) => item.id === id)?.label ?? id;
+}
+
+/** Own posts never create push alerts. */
+function matchAlertReason(post: MatchingPost, alerts: AlertPrefs) {
+  if (post.authorId === CURRENT_USER.id) return null;
+
+  if (alerts.categories.includes(post.category)) {
+    return `카테고리 · ${categoryLabel(post.category)}`;
+  }
+
+  const haystack = `${post.itemName} ${post.menuName} ${post.storeName}`.toLowerCase();
+  for (const keyword of alerts.keywords) {
+    if (haystack.includes(keyword.toLowerCase())) {
+      return `검색어 · ${keyword}`;
+    }
+  }
+  return null;
+}
+
+function buildPushNotification(
+  post: MatchingPost,
+  reason: string,
+): PushNotification {
+  return {
+    id: createId("push"),
+    postId: post.id,
+    title: `${post.itemName} 반띵 글이 올라왔어요`,
+    body: `${post.storeName} · ${post.authorName}`,
+    reason,
+    createdAt: new Date().toISOString(),
+    read: false,
+  };
 }
 
 function remainingMinutes(post: MatchingPost, now: number) {
@@ -155,6 +197,7 @@ function loadState(): PersistedState {
   try {
     const raw =
       window.localStorage.getItem(STORAGE_KEY) ??
+      window.localStorage.getItem("shinwon-half-half-v3") ??
       window.localStorage.getItem("shinwon-half-half-v2") ??
       window.localStorage.getItem("shinwon-half-half-v1");
     if (!raw) {
@@ -165,6 +208,7 @@ function loadState(): PersistedState {
         messages: seeded.messages,
         alerts: EMPTY_ALERTS,
         unreadChatPostIds: seeded.newlyUnreadPostIds,
+        pushNotifications: [],
       };
     }
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
@@ -176,6 +220,7 @@ function loadState(): PersistedState {
         messages: seeded.messages,
         alerts: parsed.alerts ?? EMPTY_ALERTS,
         unreadChatPostIds: seeded.newlyUnreadPostIds,
+        pushNotifications: parsed.pushNotifications ?? [],
       };
     }
 
@@ -194,6 +239,9 @@ function loadState(): PersistedState {
       unreadChatPostIds: [
         ...new Set([...existingUnread, ...seeded.newlyUnreadPostIds]),
       ],
+      pushNotifications: Array.isArray(parsed.pushNotifications)
+        ? parsed.pushNotifications
+        : [],
     };
   } catch {
     const posts = createFreshSeedPosts();
@@ -203,6 +251,7 @@ function loadState(): PersistedState {
       messages: seeded.messages,
       alerts: EMPTY_ALERTS,
       unreadChatPostIds: seeded.newlyUnreadPostIds,
+      pushNotifications: [],
     };
   }
 }
@@ -214,6 +263,9 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [alerts, setAlerts] = useState<AlertPrefs>(EMPTY_ALERTS);
   const [unreadChatPostIds, setUnreadChatPostIds] = useState<string[]>([]);
+  const [pushNotifications, setPushNotifications] = useState<PushNotification[]>(
+    [],
+  );
 
   useEffect(() => {
     const state = loadState();
@@ -221,6 +273,7 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
     setMessages(state.messages);
     setAlerts(state.alerts);
     setUnreadChatPostIds(state.unreadChatPostIds ?? []);
+    setPushNotifications(state.pushNotifications ?? []);
     setNow(Date.now());
     setReady(true);
 
@@ -237,9 +290,31 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
         messages,
         alerts,
         unreadChatPostIds,
+        pushNotifications,
       } satisfies PersistedState),
     );
-  }, [ready, posts, messages, alerts, unreadChatPostIds]);
+  }, [ready, posts, messages, alerts, unreadChatPostIds, pushNotifications]);
+
+  // Create inbox items when others' posts match alert prefs (never for my posts).
+  useEffect(() => {
+    if (!ready) return;
+    if (alerts.categories.length === 0 && alerts.keywords.length === 0) return;
+
+    setPushNotifications((prev) => {
+      const additions: PushNotification[] = [];
+      for (const post of posts) {
+        if (post.status !== "open") continue;
+        if (post.authorId === CURRENT_USER.id) continue;
+        if (prev.some((item) => item.postId === post.id)) continue;
+        if (additions.some((item) => item.postId === post.id)) continue;
+        const reason = matchAlertReason(post, alerts);
+        if (!reason) continue;
+        additions.push(buildPushNotification(post, reason));
+      }
+      if (additions.length === 0) return prev;
+      return [...additions, ...prev];
+    });
+  }, [ready, posts, alerts]);
 
   const openPosts = useMemo(() => {
     if (!ready || !now) return [];
@@ -283,6 +358,11 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const alertCount = alerts.categories.length + alerts.keywords.length;
+
+  const unreadPushCount = useMemo(
+    () => pushNotifications.filter((item) => !item.read).length,
+    [pushNotifications],
+  );
 
   const chatNotifyCount = useMemo(
     () =>
@@ -338,6 +418,18 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
 
   const markChatRead = useCallback((postId: string) => {
     setUnreadChatPostIds((prev) => (prev ?? []).filter((id) => id !== postId));
+  }, []);
+
+  const markPushRead = useCallback((id: string) => {
+    setPushNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read: true } : item)),
+    );
+  }, []);
+
+  const markAllPushRead = useCallback(() => {
+    setPushNotifications((prev) =>
+      prev.map((item) => (item.read ? item : { ...item, read: true })),
+    );
   }, []);
 
   const createPost = useCallback((draft: CreateDraft) => {
@@ -555,12 +647,16 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
       myOpenPosts,
       alerts,
       alertCount,
+      pushNotifications,
+      unreadPushCount,
       chatNotifyCount,
       getPost,
       getMessages,
       hasIncomingChat,
       isChatUnread,
       markChatRead,
+      markPushRead,
+      markAllPushRead,
       createPost,
       updatePost,
       deletePost,
@@ -582,12 +678,16 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
       myOpenPosts,
       alerts,
       alertCount,
+      pushNotifications,
+      unreadPushCount,
       chatNotifyCount,
       getPost,
       getMessages,
       hasIncomingChat,
       isChatUnread,
       markChatRead,
+      markPushRead,
+      markAllPushRead,
       createPost,
       updatePost,
       deletePost,

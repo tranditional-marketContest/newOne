@@ -16,7 +16,7 @@ export function MatchingHeader({
   showBell = true,
   onBellClick,
 }: MatchingHeaderProps) {
-  const { alertCount } = useMatchingStore();
+  const { unreadPushCount } = useMatchingStore();
 
   return (
     <header className="wood-bar sticky top-0 z-20 px-4 pb-3 pt-4 shadow-[0_8px_20px_rgba(82,36,14,0.18)]">
@@ -39,18 +39,14 @@ export function MatchingHeader({
         {showBell ? (
           <button
             type="button"
-            aria-label="알림 설정"
+            aria-label="알림"
             onClick={onBellClick}
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-black/10 text-lg text-hanji-main transition hover:bg-black/15"
           >
             🔔
-            {alertCount > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f2d3a2] px-1 text-[0.6rem] font-bold text-hanok-darkest">
-                {alertCount > 9 ? "9+" : alertCount}
-              </span>
-            ) : (
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#f2d3a2]/70" />
-            )}
+            {unreadPushCount > 0 ? (
+              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#f2d3a2] shadow-[0_0_0_2px_rgba(129,85,48,0.35)]" />
+            ) : null}
           </button>
         ) : (
           <span className="h-10 w-10" />

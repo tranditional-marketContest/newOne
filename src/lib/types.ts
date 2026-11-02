@@ -44,6 +44,16 @@ export interface AlertPrefs {
   keywords: string[];
 }
 
+export interface PushNotification {
+  id: string;
+  postId: string;
+  title: string;
+  body: string;
+  reason: string;
+  createdAt: string;
+  read: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   postId: string;
