@@ -162,6 +162,9 @@ function ensureDemoPosts(posts: MatchingPost[]) {
     ensure("post-mine-open");
   }
 
+  ensure("post-6");
+  ensure("post-7");
+
   return next;
 }
 

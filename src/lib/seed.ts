@@ -97,6 +97,44 @@ export const SEED_POSTS: MatchingPost[] = [
     participantIds: ["user-e"],
   },
   {
+    id: "post-6",
+    category: "food",
+    itemName: "쌀 10kg",
+    storeName: "신원미곡",
+    menuName: "경기미 10kg",
+    totalPrice: 32000,
+    peopleNeeded: 2,
+    peopleJoined: 1,
+    deadlineMinutes: 120,
+    createdAt: "",
+    meetingPlace: "main-gate",
+    note: "둘이서 5kg씩 나눠 가요. 오늘 안에 구매 희망!",
+    authorId: "user-h",
+    authorName: "골목고양이",
+    status: "open",
+    imageEmoji: "🍚",
+    participantIds: ["user-h"],
+  },
+  {
+    id: "post-7",
+    category: "tools",
+    itemName: "휴지 30롤",
+    storeName: "생활잡화마트",
+    menuName: "3겹 화장지 30롤",
+    totalPrice: 22000,
+    peopleNeeded: 2,
+    peopleJoined: 1,
+    deadlineMinutes: 150,
+    createdAt: "",
+    meetingPlace: "back-gate",
+    note: "혼자 사기엔 양이 많아서 반띵 구해요",
+    authorId: "user-i",
+    authorName: "신림산책러",
+    status: "open",
+    imageEmoji: "🧻",
+    participantIds: ["user-i"],
+  },
+  {
     id: "post-matched-1",
     category: "food",
     itemName: "사과 10입",
@@ -137,7 +175,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
 ];
 
-const SEED_OFFSETS_MINUTES = [21, 35, 10, 5, 40, 180, 12];
+const SEED_OFFSETS_MINUTES = [21, 35, 10, 5, 40, 8, 18, 180, 12];
 
 export function createFreshSeedPosts(now = Date.now()): MatchingPost[] {
   return SEED_POSTS.map((post, index) => {
