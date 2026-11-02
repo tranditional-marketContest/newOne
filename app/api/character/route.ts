@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const storeName = typeof body.storeName === "string" ? body.storeName.trim() : "";
-  const category = WIKI_CATEGORIES.find((item) => item === body.category) ?? "식료품";
+  const category = WIKI_CATEGORIES.find((item) => item === body.category) ?? "기타";
   const reviews = Array.isArray(body.reviews)
     ? body.reviews
         .filter((item): item is string => typeof item === "string")

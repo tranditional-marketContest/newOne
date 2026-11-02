@@ -1,14 +1,14 @@
 import { WIKI_CATEGORIES, type OrganizedWiki, type WikiCategory } from "./types";
 
 const CATEGORY_HINTS: { pattern: RegExp; category: WikiCategory }[] = [
-  { pattern: /닭강정|강정/, category: "닭강정" },
-  { pattern: /호떡|떡볶이|김밥|튀김|탕수|순대튀김|오뎅/, category: "분식·간식" },
-  { pattern: /순대|족발|빈대떡|파전|녹두전/, category: "순대·족발·전" },
-  { pattern: /인절미|꿀떡|절편|(?<!호)떡/, category: "떡" },
-  { pattern: /반찬|명란|김치|장아찌|나물/, category: "반찬" },
-  { pattern: /과일|야채|채소|사과|포도|귤|토마토/, category: "청과·채소" },
-  { pattern: /축산|고기|삼겹|목살|수산|생선|굴|새우|회/, category: "정육·수산" },
-  { pattern: /기름|식품|소스|조미료|들기름/, category: "식료품" },
+  { pattern: /순대국|족발|전집|식당|백반|국밥|분식집/, category: "식당" },
+  { pattern: /호떡|떡볶이|김밥|튀김|탕수|오뎅|닭강정|강정|인절미|꿀떡|절편|(?<!호)떡/, category: "간식" },
+  { pattern: /옷|의류|옷가게|양말|속옷/, category: "의류" },
+  { pattern: /생활용품|문구|청소|세제|그릇/, category: "생활용품" },
+  {
+    pattern: /반찬|명란|김치|장아찌|나물|과일|야채|채소|사과|포도|귤|토마토|축산|삼겹|목살|수산|생선|굴|새우|회|기름|조미료|들기름|식자재|식품/,
+    category: "식자재",
+  },
 ];
 
 function parseAmount(raw: string): number | null {

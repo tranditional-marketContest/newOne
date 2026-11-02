@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
   const text = typeof body.text === "string" ? body.text.trim() : "";
   const storeName = typeof body.storeName === "string" ? body.storeName.trim() : "";
-  const category = WIKI_CATEGORIES.find((item) => item === body.category) ?? "식료품";
+  const category = WIKI_CATEGORIES.find((item) => item === body.category) ?? "기타";
   if (text.length < 2 || text.length > 4000 || !storeName) {
     return Response.json({ error: "정리할 글을 확인해 주세요." }, { status: 400 });
   }

@@ -1,12 +1,10 @@
 export const WIKI_CATEGORIES = [
-  "반찬",
-  "청과·채소",
-  "정육·수산",
-  "떡",
-  "분식·간식",
-  "닭강정",
-  "순대·족발·전",
-  "식료품",
+  "식당",
+  "생활용품",
+  "간식",
+  "의류",
+  "식자재",
+  "기타",
 ] as const;
 
 export type WikiCategory = (typeof WIKI_CATEGORIES)[number];
