@@ -1,4 +1,5 @@
-import { entrances, shops } from "@/lib/course";
+import { entrances } from "@/lib/course";
+import { loadWikiStores, wikiCatalog, wikiIdsToLocalIds } from "@/lib/wiki";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -8,8 +9,7 @@ type ChatMessage = {
 const models = [
   process.env.GEMINI_MODEL,
   "gemini-3.5-flash-lite",
-  "gemini-3.5-flash",
-  "gemini-3.8-flash",
+  "gemini-3.1-flash-lite",
 ].filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index);
 
 function forGenerate(messages: ChatMessage[]) {
@@ -24,13 +24,6 @@ function forGenerate(messages: ChatMessage[]) {
     });
   }
   return next;
-}
-
-function shopCatalog() {
-  return shops
-    .filter((item) => item.kind !== "place" && item.stars > 0)
-    .map((item) => `${item.id} | ${item.name} | ${item.category} | 별 ${item.stars} | ${item.crowd} | ${item.note}`)
-    .join("\n");
 }
 
 function entranceCatalog() {
@@ -130,6 +123,7 @@ export async function POST(request: Request) {
         [
           "너는 신원시장 코스를 짜는 챗봇이다.",
           "한 번에 질문 하나만 짧게 한다. 말은 쉽고 크게 읽히게 한다.",
+          "코스는 신원위키에 적힌 가게 소개, 영업시간, 품목, 할인, 후기를 보고 고른다.",
           "연령대, 동행, 날씨, 분위기, 예산, 걷고 싶은 거리, 먹고 싶은 음식이나 피하고 싶은 음식을 대화로 모은다.",
           "이미 들은 내용은 다시 묻지 않는다.",
           "코스 목록은 만들지 않는다. 코스는 사용자가 코스 생성 버튼을 눌렀을 때 따로 만든다.",
@@ -140,18 +134,22 @@ export async function POST(request: Request) {
       return Response.json({ reply });
     }
 
+    const wikiStores = await loadWikiStores();
     const raw = await gemini(
       [
         "대화 내용을 바탕으로 신원시장 도보 코스를 JSON으로만 답한다.",
         "사용자가 마지막 질문에 답을 하지 않았으면, 이미 들은 내용만으로 만든다.",
-        "식료품(별 0)은 넣지 않는다. 별이 높은 가게를 우선하고, 업종은 겹치지 않게 3곳 또는 4곳을 고른다.",
-        "혼잡한 가게는 한 곳만 넣는다.",
+        "가게는 아래 신원위키 목록의 id만 쓴다. 소개, 영업시간, 품목, 할인, 후기가 대화와 맞는 가게를 고른다.",
+        "정보가 비어 있으면 카테고리만 보고 고른다. 같은 음식 종류는 한 곳만 넣는다. 카테고리가 같아도 파는 것이 다르면 함께 넣을 수 있다.",
+        "줄이 길 수 있는 가게는 한 곳만 넣는다.",
+        "중국식품, 정종중국식품, 신림기름집은 목록에 없다. 넣지 않는다.",
+        "가게는 3곳 또는 4곳이다.",
         "수변 장소는 산책, 데이트, 야경, 구경 이야기일 때만 shopIds에 넣는다. 0개 또는 1개, 많아야 2개다. 맛집만 원할 때는 넣지 않고, 세 곳을 한 코스에 모두 넣지 않는다.",
         "수변: stream-fountain 별빛내린천 분수, music-fountain 음악분수, footbridge 육교",
         "출입구는 목록의 id 중 하나다.",
         '형식: {"title":"짧은 코스 이름","entranceId":"n1","shopIds":["id1","id2","id3"]}',
-        "가게 목록:",
-        shopCatalog(),
+        "신원위키 가게:",
+        wikiCatalog(wikiStores),
         "출입구 목록:",
         entranceCatalog(),
       ].join("\n"),
@@ -161,10 +159,11 @@ export async function POST(request: Request) {
 
     const jsonText = raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
     const parsed = JSON.parse(jsonText) as { title?: string; entranceId?: string; shopIds?: string[] };
+    const wikiIds = Array.isArray(parsed.shopIds) ? parsed.shopIds.filter((id) => typeof id === "string") : [];
     return Response.json({
       title: typeof parsed.title === "string" ? parsed.title : "대화로 맞춘 코스",
       entranceId: typeof parsed.entranceId === "string" ? parsed.entranceId : "n1",
-      shopIds: Array.isArray(parsed.shopIds) ? parsed.shopIds.filter((id) => typeof id === "string") : [],
+      shopIds: wikiIdsToLocalIds(wikiIds, wikiStores),
     });
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
