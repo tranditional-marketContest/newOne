@@ -7,7 +7,7 @@ const promptFor = (storeName: string, category: string, reviews: string[]) => `�
 아래 소비자 후기들을 읽고, 이 가게의 성격을 2문장 이내로 요약한다.
 
 가게 이름: ${storeName}
-분야: ${category}
+카테고리: ${category}
 
 규칙:
 - 후기에 없는 내용을 지어내지 않는다.

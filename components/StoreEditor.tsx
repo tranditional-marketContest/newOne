@@ -370,7 +370,7 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
 
         <section className="space-y-3 rounded-xl border border-[#e4d8c6] p-3">
           <div>
-            <span className="mb-1 block text-xs font-bold text-stone-500">분야</span>
+            <span className="mb-1 block text-xs font-bold text-stone-500">카테고리</span>
             <p className="rounded-lg border border-[#efe4d4] bg-[#faf6ef] px-3 py-2 text-sm font-medium text-[#241c17]">
               {draft.category}
             </p>

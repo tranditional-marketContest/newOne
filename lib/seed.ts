@@ -14,7 +14,7 @@ function menu(id: string, name: string, amounts: number[], days: number[], sourc
   return { id, name, prices: prices(amounts, days, sources) };
 }
 
-/** 리뷰가 없는 가게는 이름·분야만 둔다. */
+/** 리뷰가 없는 가게는 이름·카테고리만 둔다. */
 function stall(input: { id: string; name: string; category: WikiCategory }): Store {
   return {
     id: input.id,

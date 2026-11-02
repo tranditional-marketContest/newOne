@@ -23,7 +23,7 @@ export default function StoreList({
           <input
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="가게 이름, 분야, 메뉴"
+            placeholder="가게 이름, 카테고리, 메뉴"
             className="h-11 w-full rounded-full border border-[#e4d8c6] bg-[#fffdf9] pr-11 pl-4 text-sm outline-none placeholder:text-stone-400 focus:border-[#c4492c]"
           />
           <svg

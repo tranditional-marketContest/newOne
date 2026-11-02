@@ -31,7 +31,7 @@ export default function WikiTable({
           <thead className="bg-[#e7f6df] text-xs text-[#1d5c32]">
             <tr>
               <th className="w-12 px-3 py-2 font-semibold">id</th>
-              <th className="w-28 px-3 py-2 font-semibold">분야</th>
+              <th className="w-28 px-3 py-2 font-semibold">카테고리</th>
               <th className="px-3 py-2 font-semibold">줄글</th>
             </tr>
           </thead>
@@ -87,7 +87,7 @@ export default function WikiTable({
         <thead className="bg-[#fff3b0] text-xs text-[#5c4b12]">
           <tr>
             <th className="w-12 px-3 py-2 font-semibold">id</th>
-            <th className="w-28 px-3 py-2 font-semibold">분야</th>
+            <th className="w-28 px-3 py-2 font-semibold">카테고리</th>
             <th className="px-3 py-2 font-semibold">메뉴</th>
           </tr>
         </thead>

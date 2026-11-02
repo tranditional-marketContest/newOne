@@ -10,7 +10,7 @@ type StoreDetailProps = {
 };
 
 const INFO_ROWS: { key: keyof Pick<Store, "category" | "items" | "hours" | "character" | "discount" | "note" | "updatedAt">; label: string }[] = [
-  { key: "category", label: "분야" },
+  { key: "category", label: "카테고리" },
   { key: "items", label: "판매품목" },
   { key: "hours", label: "운영시간" },
   { key: "character", label: "가게 성격" },

@@ -6,7 +6,7 @@ function unique(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
-/** 가게 홈은 리뷰·가격 제보로만 채운다. 이름·분야만 기본으로 둔다. */
+/** 가게 홈은 리뷰·가격 제보로만 채운다. 이름·카테고리만 기본으로 둔다. */
 export function buildStoreHome(store: Store): Store {
   const reviews = store.reviews ?? [];
   if (reviews.length === 0) {
