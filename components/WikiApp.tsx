@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { applyDraft } from "@/lib/apply";
 import { coerceOrganized } from "@/lib/organize";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase } from "@/lib/supabase/wiki";
 import type { EditorDraft, OrganizedWiki, Store } from "@/lib/types";
 import StoreDetail from "./StoreDetail";
 import StoreEditor from "./StoreEditor";
@@ -23,27 +25,62 @@ export default function WikiApp() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORE_STORAGE_KEY);
-    if (raw) {
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setStores(
-            (parsed as Store[]).map((store) => ({
-              ...store,
-              reviews: Array.isArray(store.reviews) ? store.reviews : [],
-            })),
+    let cancelled = false;
+
+    async function hydrate() {
+      if (isSupabaseConfigured()) {
+        const remote = await fetchStoresFromSupabase();
+        if (cancelled) return;
+
+        if (remote && remote.length > 0) {
+          setStores(remote);
+          setSelectedId(
+            [...remote].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? firstStoreId,
           );
+          setHydrated(true);
+          return;
         }
-      } catch {
-        localStorage.removeItem(STORE_STORAGE_KEY);
+
+        await seedStoresToSupabase(seedStores);
+        const seeded = await fetchStoresFromSupabase();
+        if (cancelled) return;
+        if (seeded && seeded.length > 0) {
+          setStores(seeded);
+          setSelectedId(
+            [...seeded].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? firstStoreId,
+          );
+          setHydrated(true);
+          return;
+        }
       }
+
+      const raw = localStorage.getItem(STORE_STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setStores(
+              (parsed as Store[]).map((store) => ({
+                ...store,
+                reviews: Array.isArray(store.reviews) ? store.reviews : [],
+              })),
+            );
+          }
+        } catch {
+          localStorage.removeItem(STORE_STORAGE_KEY);
+        }
+      }
+      if (!cancelled) setHydrated(true);
     }
-    setHydrated(true);
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || isSupabaseConfigured()) return;
     localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(stores));
   }, [hydrated, stores]);
 
@@ -140,6 +177,29 @@ export default function WikiApp() {
         if (summary.notice) nextNotice = summary.notice;
       } catch {
         // 성격 요약 실패 시 기존·organize 결과 유지
+      }
+    }
+
+    if (isSupabaseConfigured()) {
+      const saved = await persistWikiSubmission({
+        store: nextStore,
+        draft,
+        organized,
+      });
+      if (!saved.ok) {
+        nextNotice = saved.message || "Supabase 저장에 실패했습니다.";
+      } else {
+        const refreshed = await fetchStoresFromSupabase();
+        if (refreshed) {
+          nextStore = refreshed.find((store) => store.id === selected.id) ?? nextStore;
+          setStores(refreshed);
+          const wait = 900 - (Date.now() - started);
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+          setOrganizing(false);
+          setNotice(nextNotice || "위키와 Supabase에 저장했습니다.");
+          setPanel("detail");
+          return;
+        }
       }
     }
 
