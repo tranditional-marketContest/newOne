@@ -1,17 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  CATEGORIES,
-  type CategoryFilter,
-  type Store,
-  stallTone,
-  storesIn,
-} from "@/data/market";
+import { stallTone, storesIn, storeSummary, type Store } from "@/data/market";
 
 type Props = {
-  category: CategoryFilter;
-  onCategory: (category: CategoryFilter) => void;
+  stores: Store[];
+  categories: string[];
+  category: string;
+  onCategory: (category: string) => void;
   brief: Store | null;
   onBrief: (id: string | null) => void;
   onOpenDetail: (id: string) => void;
@@ -19,12 +15,12 @@ type Props = {
 
 type PopoverPos = { x: number; y: number };
 
-export function MarketMap({ category, onCategory, brief, onBrief, onOpenDetail }: Props) {
+export function MarketMap({ stores, categories, category, onCategory, brief, onBrief, onOpenDetail }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const pending = useRef<{ id: string; at: number } | null>(null);
   const [popover, setPopover] = useState<PopoverPos | null>(null);
-  const visible = storesIn(category);
+  const visible = storesIn(stores, category);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -148,7 +144,7 @@ export function MarketMap({ category, onCategory, brief, onBrief, onOpenDetail }
         />
 
         {visible.map((store) => {
-          const tone = stallTone[store.category];
+          const tone = stallTone(store.category);
           const w = 13;
           const h = 7.2;
           const left = store.x - w / 2;
@@ -218,7 +214,7 @@ export function MarketMap({ category, onCategory, brief, onBrief, onOpenDetail }
       </svg>
 
       <div className="absolute top-3 left-2.5 z-20 flex flex-col gap-1">
-        {CATEGORIES.map((item) => {
+        {categories.map((item) => {
           const active = item === category;
           return (
             <button
@@ -262,8 +258,7 @@ export function MarketMap({ category, onCategory, brief, onBrief, onOpenDetail }
         >
           <p className="text-[10px] font-semibold tracking-wide text-[#9b2335]">{brief.category}</p>
           <p className="font-display mt-0.5 text-[17px] leading-6 text-[#2a2118]">{brief.name}</p>
-          <p className="mt-1 text-xs leading-5 text-[#5c5146]">{brief.summary}</p>
-          <p className="mt-1.5 text-[10px] text-[#8a7b6c]">{brief.place}</p>
+          <p className="mt-1 text-xs leading-5 text-[#5c5146]">{storeSummary(brief)}</p>
           <button
             type="button"
             onClick={() => onOpenDetail(brief.id)}

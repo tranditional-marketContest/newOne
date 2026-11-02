@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Store } from "@/data/market";
+import { storeSummary, storeTags, type Store } from "@/data/market";
 import { CloseIcon } from "@/components/icons";
 import type { EventBanner } from "@/lib/event-banner";
 
@@ -52,20 +52,25 @@ export function StoreDetail({ store, onClose }: { store: Store; onClose: () => v
           </button>
         </div>
 
-        <p className="mt-4 text-sm leading-6 text-[#4e4338]">{store.description}</p>
+        {store.character ? <p className="mt-4 text-sm leading-6 text-[#4e4338]">{storeSummary(store)}</p> : null}
+        {store.hours ? (
+          <p className="mt-4 text-sm text-[#5c5146]">
+            영업시간 <span className="font-medium text-[#2a2118]">{store.hours}</span>
+          </p>
+        ) : null}
 
-        <h3 className="mt-5 text-xs font-semibold tracking-wide text-[#8a7b6c]">이 가게에서</h3>
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {store.notes.map((item) => (
-            <li key={item} className="rounded-full bg-[#f6ebe1] px-3 py-1 text-xs font-medium text-[#6a3a32]">
-              {item}
-            </li>
-          ))}
-        </ul>
-
-        <p className="mt-5 text-sm text-[#5c5146]">
-          위치 <span className="font-medium text-[#2a2118]">{store.place}</span>
-        </p>
+        {storeTags(store).length ? (
+          <>
+            <h3 className="mt-5 text-xs font-semibold tracking-wide text-[#8a7b6c]">이 가게에서</h3>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {storeTags(store).map((item) => (
+                <li key={item} className="rounded-full bg-[#f6ebe1] px-3 py-1 text-xs font-medium text-[#6a3a32]">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </div>
     </div>
   );

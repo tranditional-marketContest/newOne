@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { findStore, type CategoryFilter } from "@/data/market";
+import { categoryFilters, findStore, type Store } from "@/data/market";
 import { UserIcon } from "@/components/icons";
 import { MarketMap } from "@/components/market-map";
 import { RadialMenu } from "@/components/radial-menu";
@@ -10,8 +10,9 @@ import type { EventBanner } from "@/lib/event-banner";
 
 const NAME_KEY = "sinwon-visitor";
 
-export function HomeScreen({ banner }: { banner: EventBanner }) {
-  const [category, setCategory] = useState<CategoryFilter>("전체");
+export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: Store[] }) {
+  const categories = categoryFilters(stores);
+  const [category, setCategory] = useState("전체");
   const [briefId, setBriefId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
@@ -23,10 +24,10 @@ export function HomeScreen({ banner }: { banner: EventBanner }) {
     if (saved) setUserName(saved);
   }, []);
 
-  function selectCategory(next: CategoryFilter) {
+  function selectCategory(next: string) {
     setCategory(next);
-    setBriefId((id) => (kept(id, next) ? id : null));
-    setDetailId((id) => (kept(id, next) ? id : null));
+    setBriefId((id) => (kept(stores, id, next) ? id : null));
+    setDetailId((id) => (kept(stores, id, next) ? id : null));
   }
 
   function openDetail(id: string) {
@@ -36,8 +37,8 @@ export function HomeScreen({ banner }: { banner: EventBanner }) {
     setAccountOpen(false);
   }
 
-  const brief = briefId ? findStore(briefId) : null;
-  const detail = detailId ? findStore(detailId) : null;
+  const brief = briefId ? findStore(stores, briefId) : null;
+  const detail = detailId ? findStore(stores, detailId) : null;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -118,6 +119,8 @@ export function HomeScreen({ banner }: { banner: EventBanner }) {
 
       <main className="relative z-0 min-h-0 flex-1">
         <MarketMap
+          stores={stores}
+          categories={categories}
           category={category}
           onCategory={selectCategory}
           brief={brief}
@@ -152,9 +155,9 @@ export function HomeScreen({ banner }: { banner: EventBanner }) {
   );
 }
 
-function kept(id: string | null, category: CategoryFilter) {
+function kept(stores: Store[], id: string | null, category: string) {
   if (!id) return false;
-  const store = findStore(id);
+  const store = findStore(stores, id);
   if (!store) return false;
   return category === "전체" || store.category === category;
 }
