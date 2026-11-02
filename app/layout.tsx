@@ -17,7 +17,7 @@ const gowun = Gowun_Batang({
 });
 
 export const metadata: Metadata = {
-  title: "신원시장",
+  title: "new-one",
   description:
     "별빛내린천과 이어지는 신원시장 지도. 가게를 찾고, 위키와 코스, 반띵 매칭으로 이어집니다.",
 };

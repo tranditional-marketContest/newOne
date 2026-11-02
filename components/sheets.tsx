@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Store } from "@/data/market";
 import { CloseIcon } from "@/components/icons";
+import type { EventBanner } from "@/lib/event-banner";
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -70,7 +71,7 @@ export function StoreDetail({ store, onClose }: { store: Store; onClose: () => v
   );
 }
 
-export function EventSheet({ onClose }: { onClose: () => void }) {
+export function EventSheet({ banner, onClose }: { banner: EventBanner; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose);
 
@@ -86,46 +87,53 @@ export function EventSheet({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-title"
-        className="sheet-rise overflow-hidden rounded-t-[1.7rem] bg-[#fffaf3] shadow-[0_-16px_50px_rgba(42,33,24,0.18)] outline-none"
+        className="sheet-rise flex max-h-[78%] flex-col overflow-hidden rounded-t-[1.7rem] bg-[#fffaf3] shadow-[0_-16px_50px_rgba(42,33,24,0.18)] outline-none"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="bg-gradient-to-br from-[#221a4a] via-[#3a2770] to-[#6a3a4a] px-5 pt-4 pb-5 text-white">
+        <div className="shrink-0 bg-gradient-to-br from-[#221a4a] via-[#3a2770] to-[#6a3a4a] px-5 pt-4 pb-5 text-white">
           <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-white/35" />
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.14em] text-[#f6e7b4]">진행 중</p>
-              <h2 id="event-title" className="font-display mt-1 text-[1.8rem] leading-8">
-                별빛내린천
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.14em] text-[#f6e7b4]">{banner.sheet.badge}</p>
+              <h2 id="event-title" className="font-display mt-1 text-[1.65rem] leading-8">
+                {banner.sheet.title}
               </h2>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="행사 안내 닫기"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white/12 text-white ring-1 ring-white/20"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/12 text-white ring-1 ring-white/20"
             >
               <CloseIcon className="h-5 w-5" />
             </button>
           </div>
-          <p className="mt-2 text-sm leading-6 text-white/85">수변에 머물다 시장 골목으로 이어지는 밤입니다.</p>
+          <p className="mt-2 text-sm leading-6 text-white/85">{banner.sheet.summary}</p>
         </div>
-        <dl className="space-y-3 px-5 py-4 text-sm">
-          <div>
-            <dt className="text-[11px] font-semibold text-[#8a7b6c]">음악분수</dt>
-            <dd className="mt-0.5 text-[#2a2118]">매일 정오, 오후 7시, 오후 8시</dd>
-          </div>
-          <div>
-            <dt className="text-[11px] font-semibold text-[#8a7b6c]">장소</dt>
-            <dd className="mt-0.5 text-[#2a2118]">도림천 별빛내린천, 수변테라스에서 신원시장 정문까지</dd>
-          </div>
-          <div>
-            <dt className="text-[11px] font-semibold text-[#8a7b6c]">시장과 잇기</dt>
-            <dd className="mt-0.5 leading-6 text-[#4e4338]">
-              낮에는 시장에서 장을 보고, 해가 진 뒤에는 수변에 머물 수 있습니다. 분수 시간에 맞춰 골목
-              간식과 저녁 장을 들르면 됩니다.
-            </dd>
-          </div>
-        </dl>
+        <div className="overflow-y-auto">
+          {banner.sheet.rows.length ? (
+            <dl className="space-y-3 px-5 py-4 text-sm">
+              {banner.sheet.rows.map((row) => (
+                <div key={row.label}>
+                  <dt className="text-[11px] font-semibold text-[#8a7b6c]">{row.label}</dt>
+                  <dd className="mt-0.5 leading-6 whitespace-pre-line text-[#2a2118]">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {banner.sheet.link ? (
+            <div className="px-5 pt-1 pb-5">
+              <a
+                href={banner.sheet.link}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-full bg-[#9b2335] px-3 py-2 text-sm font-semibold text-white"
+              >
+                공식 안내 열기
+              </a>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

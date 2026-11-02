@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { BookIcon, PathIcon, SplitIcon } from "@/components/icons";
 
@@ -55,74 +58,104 @@ function sectorPath(start: number, end: number) {
 }
 
 export function RadialMenu() {
-  return (
-    <nav aria-label="주요 메뉴" className="relative shrink-0 pb-[env(safe-area-inset-bottom)]">
-      <div className="relative">
-        <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="fan-svg pointer-events-none block h-auto w-full" aria-hidden>
-          {sectors.map((sector) => (
-            <path key={sector.href} className="fan-sector" d={sectorPath(sector.start, sector.end)} fill={sector.color} />
-          ))}
-          <g aria-hidden>
-            <circle cx={CX} cy={CY} r="34" fill="#FFFBF6" className="pointer-events-auto" />
-            <circle cx={CX} cy={CY} r="34" fill="none" stroke="#9B2335" strokeWidth="1.6" />
-            <circle cx={CX} cy={CY} r="26" fill="none" stroke="#F0D5C8" strokeWidth="0.9" />
-            <text
-              x={CX}
-              y={CY + 7}
-              textAnchor="middle"
-              fill="#9B2335"
-              fontSize="18"
-              className="font-display"
-            >
-              신
-            </text>
-          </g>
-        </svg>
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(false);
+  const [pressTick, setPressTick] = useState(0);
 
-        <div className="absolute inset-x-0 top-[18%] bottom-0 z-10 grid grid-cols-3">
-          {sectors.map((sector) => (
-            <Link
-              key={sector.href}
-              href={sector.href}
-              aria-label={`${sector.label} 화면으로 이동`}
-              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fffaf3]"
-            />
-          ))}
-        </div>
+  function reduceMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function toggle() {
+    setPressTick((tick) => tick + 1);
+    if (open) {
+      setOpen(false);
+      if (reduceMotion()) setShown(false);
+      return;
+    }
+    setShown(true);
+    setOpen(true);
+  }
+
+  function onFanAnimationEnd(event: React.AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.animationName !== "fan-close") return;
+    setShown(false);
+  }
+
+  return (
+    <nav aria-label="주요 메뉴" className="relative mx-auto w-[78%] shrink-0 pb-[env(safe-area-inset-bottom)]">
+      {shown ? (
         <div
-          aria-hidden
-          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          className="pointer-events-none absolute left-1/2 z-10 w-full"
           style={{
-            left: "50%",
-            top: `${(CY / VIEW_H) * 100}%`,
-            width: `${(68 / VIEW_W) * 100}%`,
-            aspectRatio: "1",
+            top: "2rem",
+            transform: `translate(-50%, -${(CY / VIEW_H) * 100}%)`,
           }}
-        />
-        <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
-          {sectors.map((sector) => {
-            const point = polar(sector.mid, 102);
-            const Icon = sector.icon;
-            return (
-              <div
-                key={sector.href}
-                className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-white"
-                style={{
-                  left: `${(point.x / VIEW_W) * 100}%`,
-                  top: `${(point.y / VIEW_H) * 100}%`,
-                }}
-              >
-                <Icon className="mb-0.5 h-5 w-5" />
-                <span className="text-center text-[13px] leading-4 font-semibold tracking-tight">
-                  {sector.lines[0]}
-                  <br />
-                  {sector.lines[1]}
-                </span>
-              </div>
-            );
-          })}
+        >
+          <div className={`relative ${open ? "fan-pop" : "fan-close"}`} onAnimationEnd={onFanAnimationEnd}>
+            <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="fan-svg pointer-events-none block h-auto w-full" aria-hidden>
+              {sectors.map((sector) => (
+                <path key={sector.href} className="fan-sector" d={sectorPath(sector.start, sector.end)} fill={sector.color} />
+              ))}
+            </svg>
+
+            <div
+              className={`absolute inset-x-0 top-[18%] bottom-0 z-10 grid grid-cols-3 ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+            >
+              {sectors.map((sector) => (
+                <Link
+                  key={sector.href}
+                  href={sector.href}
+                  aria-label={`${sector.label} 화면으로 이동`}
+                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fffaf3]"
+                />
+              ))}
+            </div>
+
+            <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
+              {sectors.map((sector) => {
+                const point = polar(sector.mid, 102);
+                const lift = sector.href === "/course" ? 0 : 8;
+                const Icon = sector.icon;
+                return (
+                  <div
+                    key={sector.href}
+                    className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-white"
+                    style={{
+                      left: `${(point.x / VIEW_W) * 100}%`,
+                      top: `${((point.y - lift) / VIEW_H) * 100}%`,
+                    }}
+                  >
+                    <Icon className="mb-0.5 h-6 w-6" />
+                    <span className="text-center text-[15px] leading-[1.15] font-semibold tracking-tight">
+                      {sector.lines[0]}
+                      <br />
+                      {sector.lines[1]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={open ? "메뉴 닫기" : "메뉴 열기"}
+        onClick={toggle}
+        className="relative z-30 mx-auto block h-16 w-16"
+      >
+        <span
+          key={pressTick}
+          className={`grid h-full w-full place-items-center rounded-full bg-[#fffbf6] font-display text-lg text-[#9b2335] shadow-[inset_0_0_0_1.6px_#9b2335] ${pressTick > 0 ? "sin-press" : ""}`}
+        >
+          <span className="grid h-[76%] w-[76%] place-items-center rounded-full shadow-[inset_0_0_0_1px_#f0d5c8]">
+            新
+          </span>
+        </span>
+      </button>
     </nav>
   );
 }
