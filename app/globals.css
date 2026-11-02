@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #e7d7c6;
+  --foreground: #2a2118;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-noto), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-display: var(--font-gowun), "Batang", serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.fan-svg {
+  filter: drop-shadow(0 -8px 16px rgba(42, 33, 24, 0.08));
+}
+
+.fan-sector {
+  transition: filter 160ms ease;
+}
+
+.fan-sector:hover,
+.fan-sector:active {
+  filter: brightness(1.12);
+}
+
+.fan-sector:focus-visible {
+  outline: none;
+}
+
+.fan-sector:focus-visible path {
+  stroke: #fffaf3;
+  stroke-width: 2.5;
+}
+
+.store-dot:focus-visible .halo {
+  stroke: #2a2118;
+  stroke-width: 0.7;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.sheet-rise {
+  animation: rise 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-rise,
+  .fan-sector {
+    animation: none;
+    transition: none;
+  }
+}
