@@ -1,7 +1,6 @@
+import { generateGeminiJson, getGeminiApiKey } from "@/lib/gemini";
 import { coerceOrganized, organizeLocally } from "@/lib/organize";
 import { WIKI_CATEGORIES, type WikiCategory } from "@/lib/types";
-
-const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
 
 const promptFor = (storeName: string, category: string, text: string) => `너는 신원시장 신원위키의 정리 담당이다.
 소비자가 블로그나 리뷰처럼 자유롭게 쓴 글을, 위키 항목으로만 요약한다.
@@ -25,23 +24,6 @@ const promptFor = (storeName: string, category: string, text: string) => `너는
 소비자 글:
 ${text}`;
 
-function readModelText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const candidates = (payload as { candidates?: unknown }).candidates;
-  if (!Array.isArray(candidates) || candidates.length === 0) return "";
-  const content = (candidates[0] as { content?: { parts?: unknown[] } }).content;
-  const parts = content?.parts ?? [];
-  const texts = parts
-    .map((part) => {
-      if (!part || typeof part !== "object") return "";
-      const row = part as { text?: unknown; thought?: unknown };
-      if (row.thought === true || typeof row.text !== "string") return "";
-      return row.text;
-    })
-    .filter(Boolean);
-  return texts.join("\n").trim();
-}
-
 export async function POST(request: Request) {
   let body: { text?: unknown; storeName?: unknown; category?: unknown };
   try {
@@ -58,43 +40,23 @@ export async function POST(request: Request) {
   }
 
   const fallback = organizeLocally(text, category as WikiCategory);
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!getGeminiApiKey()) {
     return Response.json({
       source: "local",
       result: fallback,
-      notice: "Gemini API 키가 없어 글에서 가격과 문장을 직접 나눠 넣었습니다.",
+      notice: "Gemini API 키가 없어 글에서 가격과 문장을 직접 나눠 넣었습니다. .env.local에 GEMINI_API_KEY를 넣어 주세요.",
     });
   }
 
-  const requestBody = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: promptFor(storeName, category, text) }] }],
-    generationConfig: { responseMimeType: "application/json" },
-  });
-
-  for (const model of MODELS) {
+  const raw = await generateGeminiJson(promptFor(storeName, category, text));
+  if (raw) {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: requestBody,
-          signal: AbortSignal.timeout(12000),
-        },
-      );
-      if (!response.ok) continue;
-
-      const payload: unknown = await response.json();
-      const raw = readModelText(payload).replace(/^```json\s*|```$/g, "").trim();
       const organized = coerceOrganized(JSON.parse(raw), category as WikiCategory);
-      if (!organized) continue;
-      return Response.json({ source: "gemini", result: organized, notice: "" });
+      if (organized) {
+        return Response.json({ source: "gemini", result: organized, notice: "" });
+      }
     } catch {
-      continue;
+      // fall through
     }
   }
 

@@ -1,7 +1,6 @@
+import { generateGeminiJson, getGeminiApiKey } from "@/lib/gemini";
 import { organizeLocally } from "@/lib/organize";
 import { WIKI_CATEGORIES, type WikiCategory } from "@/lib/types";
-
-const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
 
 const promptFor = (storeName: string, category: string, reviews: string[]) => `너는 신원시장 신원위키의 정리 담당이다.
 아래 소비자 후기들을 읽고, 이 가게의 성격을 2문장 이내로 요약한다.
@@ -17,23 +16,6 @@ const promptFor = (storeName: string, category: string, reviews: string[]) => `�
 
 후기:
 ${reviews.map((text, index) => `${index + 1}. ${text}`).join("\n")}`;
-
-function readModelText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const candidates = (payload as { candidates?: unknown }).candidates;
-  if (!Array.isArray(candidates) || candidates.length === 0) return "";
-  const content = (candidates[0] as { content?: { parts?: unknown[] } }).content;
-  const parts = content?.parts ?? [];
-  const texts = parts
-    .map((part) => {
-      if (!part || typeof part !== "object") return "";
-      const row = part as { text?: unknown; thought?: unknown };
-      if (row.thought === true || typeof row.text !== "string") return "";
-      return row.text;
-    })
-    .filter(Boolean);
-  return texts.join("\n").trim();
-}
 
 function characterFrom(value: unknown): string {
   if (!value || typeof value !== "object") return "";
@@ -69,43 +51,24 @@ export async function POST(request: Request) {
   }
 
   const fallback = organizeLocally(joined, category as WikiCategory).character;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!getGeminiApiKey()) {
     return Response.json({
       source: "local",
       character: fallback,
-      notice: "Gemini API 키가 없어 후기 문장으로 성격을 맞춰 넣었습니다.",
+      notice:
+        "Gemini API 키가 없어 후기 문장으로 성격을 맞춰 넣었습니다. .env.local에 GEMINI_API_KEY를 넣어 주세요.",
     });
   }
 
-  const requestBody = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: promptFor(storeName, category, reviews) }] }],
-    generationConfig: { responseMimeType: "application/json" },
-  });
-
-  for (const model of MODELS) {
+  const raw = await generateGeminiJson(promptFor(storeName, category, reviews));
+  if (raw) {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: requestBody,
-          signal: AbortSignal.timeout(12000),
-        },
-      );
-      if (!response.ok) continue;
-
-      const payload: unknown = await response.json();
-      const raw = readModelText(payload).replace(/^```json\s*|```$/g, "").trim();
       const character = characterFrom(JSON.parse(raw));
-      if (!character) continue;
-      return Response.json({ source: "gemini", character, notice: "" });
+      if (character) {
+        return Response.json({ source: "gemini", character, notice: "" });
+      }
     } catch {
-      continue;
+      // fall through
     }
   }
 
