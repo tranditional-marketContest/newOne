@@ -123,7 +123,7 @@ export function CourseApp() {
               <span
                 key={item.id}
                 title={item.name}
-                className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#8B5E3C] ring-2 ring-[#FFEED6]"
+                className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e11d48] ring-2 ring-white"
                 style={point(item)}
               />
             ))
