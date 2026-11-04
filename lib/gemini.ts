@@ -1,37 +1,65 @@
-import "server-only";
-import { GoogleGenAI } from "@google/genai";
+/** 무료 한도를 오래 쓰기 위해 가벼운 모델부터 시도한다. */
+export const GEMINI_MODELS = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-1.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+] as const;
 
-const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"] as const;
-
-function client() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY가 설정되어 있지 않습니다.");
-  }
-  return new GoogleGenAI({ apiKey });
+export function getGeminiApiKey(): string {
+  return process.env.GEMINI_API_KEY?.trim() ?? "";
 }
 
-function statusOf(error: unknown) {
-  if (typeof error === "object" && error && "status" in error) {
-    return error.status;
-  }
-  return undefined;
+export function readGeminiText(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const candidates = (payload as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return "";
+  const content = (candidates[0] as { content?: { parts?: unknown[] } }).content;
+  const parts = content?.parts ?? [];
+  return parts
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      const row = part as { text?: unknown; thought?: unknown };
+      if (row.thought === true || typeof row.text !== "string") return "";
+      return row.text;
+    })
+    .filter(Boolean)
+    .join("\n")
+    .trim();
 }
 
-export async function generateText(contents: string) {
-  const ai = client();
-  let lastError: unknown;
+export async function generateGeminiJson(prompt: string): Promise<string | null> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return null;
 
-  for (const model of MODELS) {
+  const requestBody = JSON.stringify({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  for (const model of GEMINI_MODELS) {
     try {
-      const response = await ai.models.generateContent({ model, contents });
-      return response.text ?? "";
-    } catch (error) {
-      lastError = error;
-      const status = statusOf(error);
-      if (status !== 503 && status !== 429) throw error;
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: requestBody,
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      if (!response.ok) continue;
+      const payload: unknown = await response.json();
+      const raw = readGeminiText(payload).replace(/^```json\s*|```$/g, "").trim();
+      if (raw) return raw;
+    } catch {
+      continue;
     }
   }
 
-  throw lastError;
+  return null;
 }
