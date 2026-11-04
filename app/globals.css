@@ -9,8 +9,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-noto), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  --font-display: var(--font-gowun), "Batang", serif;
+  /* Google Fonts 네트워크 실패 대비: 로컬 한글 폰트 스택 */
+  --font-sans: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-display: "Batang", "AppleMyungjo", "Nanum Myeongjo", serif;
 }
 
 body {

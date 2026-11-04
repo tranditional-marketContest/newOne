@@ -1,20 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Gowun_Batang, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
-
-const noto = Noto_Sans_KR({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-noto",
-  display: "swap",
-});
-
-const gowun = Gowun_Batang({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-gowun",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "new-one",
@@ -30,8 +15,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className={`${noto.variable} ${gowun.variable} h-full antialiased`}>
-      <body className="min-h-dvh bg-background font-sans text-foreground">{children}</body>
+    <html lang="ko" className="h-full antialiased">
+      <body className="min-h-dvh bg-background font-sans text-foreground">
+        {children}
+      </body>
     </html>
   );
 }

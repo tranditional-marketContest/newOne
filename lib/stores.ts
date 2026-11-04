@@ -17,18 +17,27 @@ type StoreRecord = {
 export async function getStores() {
   const supabase = getSupabase();
   if (!supabase) {
-    throw new Error("Supabase 환경 변수가 설정되어 있지 않습니다.");
+    console.warn("Supabase 환경 변수가 없어 빈 가게 목록을 씁니다.");
+    return placeStores([]);
   }
 
-  const { data, error } = await supabase
-    .from("stores")
-    .select("id,name,category,hours,items,character,discount,note,photos")
-    .order("name", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("stores")
+      .select("id,name,category,hours,items,character,discount,note,photos")
+      .order("name", { ascending: true });
 
-  if (error) throw new Error(error.message);
+    if (error) {
+      console.warn("Supabase stores 조회 실패:", error.message);
+      return placeStores([]);
+    }
 
-  const rows = ((data ?? []) as StoreRecord[]).map(toRow);
-  return placeStores(rows);
+    const rows = ((data ?? []) as StoreRecord[]).map(toRow);
+    return placeStores(rows);
+  } catch (err) {
+    console.warn("Supabase stores 요청 실패:", err);
+    return placeStores([]);
+  }
 }
 
 function toRow(record: StoreRecord): StoreRow {
