@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { categoryFilters, findStore, type Store } from "@/data/market";
 import { UserIcon } from "@/components/icons";
 import { MarketMap } from "@/components/market-map";
 import { RadialMenu } from "@/components/radial-menu";
-import { AccountSheet, EventSheet, StoreDetail } from "@/components/sheets";
+import { EventSheet, StoreDetail } from "@/components/sheets";
 import type { EventBanner } from "@/lib/event-banner";
 
 const NAME_KEY = "sinwon-visitor";
@@ -16,7 +17,6 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
   const [briefId, setBriefId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,7 +34,6 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
     setBriefId(null);
     setDetailId(id);
     setEventOpen(false);
-    setAccountOpen(false);
   }
 
   const brief = briefId ? findStore(stores, briefId) : null;
@@ -49,11 +48,10 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
           </span>
           <span className="truncate text-[1.35rem] font-semibold tracking-tight text-[#2a2118]">new-one</span>
         </div>
-        <button
-          type="button"
+        <Link
+          href="/mypage"
           aria-label={userName ? `${userName} 프로필` : "로그인 및 프로필"}
           onClick={() => {
-            setAccountOpen(true);
             setEventOpen(false);
             setBriefId(null);
           }}
@@ -64,14 +62,13 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
           ) : (
             <UserIcon className="h-6 w-6" />
           )}
-        </button>
+        </Link>
       </header>
 
       <button
         type="button"
         onClick={() => {
           setEventOpen(true);
-          setAccountOpen(false);
           setBriefId(null);
         }}
         aria-label={
@@ -135,22 +132,6 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
 
       {detail ? <StoreDetail store={detail} onClose={() => setDetailId(null)} /> : null}
       {eventOpen ? <EventSheet banner={banner} onClose={() => setEventOpen(false)} /> : null}
-      {accountOpen ? (
-        <AccountSheet
-          name={userName}
-          onClose={() => setAccountOpen(false)}
-          onSave={(next) => {
-            window.sessionStorage.setItem(NAME_KEY, next);
-            setUserName(next);
-            setAccountOpen(false);
-          }}
-          onLogout={() => {
-            window.sessionStorage.removeItem(NAME_KEY);
-            setUserName(null);
-            setAccountOpen(false);
-          }}
-        />
-      ) : null}
     </div>
   );
 }
