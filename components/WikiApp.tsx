@@ -13,7 +13,7 @@ import StoreDetail from "./StoreDetail";
 import StoreEditor from "./StoreEditor";
 import StoreList from "./StoreList";
 
-type Panel = "list" | "detail" | "edit";
+type Panel = "detail" | "edit";
 
 const firstStoreId = [...seedStores].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? null;
 
@@ -22,7 +22,8 @@ export default function WikiApp() {
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(firstStoreId);
-  const [panel, setPanel] = useState<Panel>("list");
+  const [panel, setPanel] = useState<Panel>("detail");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [organizing, setOrganizing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -104,6 +105,7 @@ export default function WikiApp() {
   function selectStore(id: string) {
     setSelectedId(id);
     setPanel("detail");
+    setSidebarOpen(false);
     setNotice(null);
   }
 
@@ -214,7 +216,7 @@ export default function WikiApp() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f3ecdf]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#f3ecdf]">
       <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-1 md:px-5">
         <Link
           href="/"
@@ -223,22 +225,14 @@ export default function WikiApp() {
         >
           <BackIcon className="h-6 w-6" />
         </Link>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold tracking-wide text-[#c4492c]">신원시장</p>
           <h1 className="text-2xl font-bold tracking-tight">신원위키</h1>
         </div>
       </header>
-      <main className="grid min-h-0 flex-1 gap-3 p-3 md:grid-cols-[300px_minmax(0,1fr)] md:px-5 md:pb-5">
-        <div className={`h-full min-h-0 ${panel === "list" ? "block" : "hidden md:block"}`}>
-          <StoreList
-            query={query}
-            stores={visibleStores}
-            selectedId={selected?.id ?? null}
-            onQueryChange={setQuery}
-            onSelect={selectStore}
-          />
-        </div>
-        <div className={`h-full min-h-0 ${panel === "list" ? "hidden md:block" : "block"}`}>
+
+      <main className="relative min-h-0 flex-1 p-3 md:px-5 md:pb-5">
+        <div className="h-full min-h-0">
           {selected && panel === "edit" ? (
             <StoreEditor
               key={selected.id}
@@ -251,22 +245,65 @@ export default function WikiApp() {
             <StoreDetail
               store={selected}
               notice={notice}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((open) => !open)}
               onEdit={() => {
                 setNotice(null);
                 setPanel("edit");
               }}
-              onBack={() => setPanel("list")}
             />
           ) : (
-            <div className="grid h-full place-items-center rounded-2xl border border-dashed border-[#e4d8c6] bg-white text-sm text-stone-500">
-              가게를 선택해 주세요.
+            <div className="grid h-full place-items-center rounded-2xl border border-dashed border-[#e4d8c6] bg-white px-4 text-center text-sm text-stone-500">
+              <div>
+                <button
+                  type="button"
+                  aria-expanded={sidebarOpen}
+                  aria-controls="wiki-store-sidebar"
+                  onClick={() => setSidebarOpen(true)}
+                  className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-[#fffaf3] text-[#2a2118] ring-1 ring-[#2a2118]/10"
+                  aria-label="가게 목록 열기"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none">
+                    <path
+                      d="M5 7.5h14M5 12h14M5 16.5h14"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+                목록에서 가게를 선택해 주세요.
+              </div>
             </div>
           )}
         </div>
+
+        <div
+          className={`absolute inset-0 z-20 bg-[#241c17]/35 transition-opacity duration-200 ${
+            sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden={!sidebarOpen}
+        />
+
+        <aside
+          id="wiki-store-sidebar"
+          className={`absolute inset-y-3 left-3 z-30 w-[min(100%-1.5rem,300px)] transition-transform duration-200 ease-out md:inset-y-0 md:left-0 md:my-0 md:w-[300px] ${
+            sidebarOpen ? "translate-x-0" : "pointer-events-none -translate-x-[calc(100%+0.75rem)]"
+          }`}
+        >
+          <StoreList
+            query={query}
+            stores={visibleStores}
+            selectedId={selected?.id ?? null}
+            onQueryChange={setQuery}
+            onSelect={selectStore}
+          />
+        </aside>
       </main>
 
       {organizing ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#241c17]/45 px-6">
+        <div className="absolute inset-0 z-50 grid place-items-center bg-[#241c17]/45 px-6">
           <div className="w-full max-w-sm rounded-2xl bg-white px-6 py-7 text-center shadow-xl">
             <div className="mx-auto size-8 animate-spin rounded-full border-2 border-[#e7f6df] border-t-[#1f7a45]" />
             <p className="mt-4 text-lg font-bold">AI가 정리하고 있어요</p>

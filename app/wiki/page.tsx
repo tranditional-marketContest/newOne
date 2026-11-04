@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AppFrame } from "@/components/app-frame";
 import WikiApp from "@/components/WikiApp";
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function WikiPage() {
   return (
     <AppFrame>
-      <WikiApp />
+      <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#6b5a4a]">위키 불러오는 중…</div>}>
+        <WikiApp />
+      </Suspense>
     </AppFrame>
   );
 }

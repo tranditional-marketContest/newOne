@@ -29,13 +29,16 @@ export function readGeminiText(payload: unknown): string {
     .trim();
 }
 
-export async function generateGeminiJson(prompt: string): Promise<string | null> {
+async function generateGeminiContent(
+  prompt: string,
+  generationConfig?: Record<string, unknown>,
+): Promise<string | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) return null;
 
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json" },
+    ...(generationConfig ? { generationConfig } : {}),
   });
 
   for (const model of GEMINI_MODELS) {
@@ -54,7 +57,7 @@ export async function generateGeminiJson(prompt: string): Promise<string | null>
       );
       if (!response.ok) continue;
       const payload: unknown = await response.json();
-      const raw = readGeminiText(payload).replace(/^```json\s*|```$/g, "").trim();
+      const raw = readGeminiText(payload).trim();
       if (raw) return raw;
     } catch {
       continue;
@@ -62,4 +65,18 @@ export async function generateGeminiJson(prompt: string): Promise<string | null>
   }
 
   return null;
+}
+
+/** 홈 이벤트 배너 등 일반 텍스트 생성 (merge 브랜치용) */
+export async function generateText(contents: string): Promise<string> {
+  const text = await generateGeminiContent(contents);
+  if (text == null) {
+    throw new Error("GEMINI_API_KEY가 설정되어 있지 않거나 Gemini 응답이 비었습니다.");
+  }
+  return text;
+}
+
+export async function generateGeminiJson(prompt: string): Promise<string | null> {
+  const raw = await generateGeminiContent(prompt, { responseMimeType: "application/json" });
+  return raw?.replace(/^```json\s*|```$/g, "").trim() ?? null;
 }

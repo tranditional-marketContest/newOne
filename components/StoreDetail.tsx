@@ -1,12 +1,14 @@
 import { buildStoreHome } from "@/lib/store-home";
 import type { Store } from "@/lib/types";
+import { CloseIcon } from "./icons";
 import MenuBoard from "./MenuBoard";
 
 type StoreDetailProps = {
   store: Store;
   notice: string | null;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   onEdit: () => void;
-  onBack: () => void;
 };
 
 const INFO_ROWS: { key: keyof Pick<Store, "category" | "items" | "hours" | "character" | "discount" | "note" | "updatedAt">; label: string }[] = [
@@ -19,7 +21,7 @@ const INFO_ROWS: { key: keyof Pick<Store, "category" | "items" | "hours" | "char
   { key: "updatedAt", label: "최근 갱신" },
 ];
 
-export default function StoreDetail({ store, notice, onEdit, onBack }: StoreDetailProps) {
+export default function StoreDetail({ store, notice, sidebarOpen, onToggleSidebar, onEdit }: StoreDetailProps) {
   const reviewCount = store.reviews?.length ?? 0;
   const view = buildStoreHome(store);
 
@@ -28,12 +30,26 @@ export default function StoreDetail({ store, notice, onEdit, onBack }: StoreDeta
       <div className="flex items-center gap-3 border-b border-[#efe4d4] px-4 py-3">
         <button
           type="button"
-          onClick={onBack}
-          className="rounded-full border border-[#e4d8c6] px-3 py-1 text-xs text-stone-600 md:hidden"
+          aria-expanded={sidebarOpen}
+          aria-controls="wiki-store-sidebar"
+          aria-label={sidebarOpen ? "가게 목록 닫기" : "가게 목록 열기"}
+          onClick={onToggleSidebar}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#fffaf3] text-[#2a2118] ring-1 ring-[#e4d8c6]"
         >
-          목록
+          {sidebarOpen ? (
+            <CloseIcon className="h-5 w-5" />
+          ) : (
+            <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none">
+              <path
+                d="M5 7.5h14M5 12h14M5 16.5h14"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
         </button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="truncate text-xl font-bold">{store.name}</h2>
             <span className="shrink-0 rounded-full bg-[#ffe56a] px-2.5 py-1 text-xs font-bold">
