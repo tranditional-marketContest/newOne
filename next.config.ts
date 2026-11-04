@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-<<<<<<< HEAD
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
@@ -12,7 +11,7 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
-=======
+  },
   async headers() {
     return [
       {
@@ -26,7 +25,6 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
->>>>>>> origin/seohyeon_logIn
   },
 };
 

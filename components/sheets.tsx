@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { storeSummary, storeTags, type Store } from "@/data/market";
+import type { Store } from "@/data/market";
 import { CloseIcon } from "@/components/icons";
 import type { EventBanner } from "@/lib/event-banner";
 
@@ -15,8 +15,16 @@ function useEscape(onClose: () => void) {
   }, [onClose]);
 }
 
+function menuItems(raw: string) {
+  return raw
+    .split(/[\n,·|/]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export function StoreDetail({ store, onClose }: { store: Store; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const menu = menuItems(store.items);
   useEscape(onClose);
 
   useEffect(() => {
@@ -36,12 +44,9 @@ export function StoreDetail({ store, onClose }: { store: Store; onClose: () => v
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#eadfd2]" />
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-[#9b2335]">{store.category}</p>
-            <h2 id="store-detail-title" className="font-display mt-1 text-[1.7rem] leading-8 text-[#2a2118]">
-              {store.name}
-            </h2>
-          </div>
+          <h2 id="store-detail-title" className="font-display text-[1.7rem] leading-8 text-[#2a2118]">
+            {store.name}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -52,25 +57,21 @@ export function StoreDetail({ store, onClose }: { store: Store; onClose: () => v
           </button>
         </div>
 
-        {store.character ? <p className="mt-4 text-sm leading-6 text-[#4e4338]">{storeSummary(store)}</p> : null}
-        {store.hours ? (
-          <p className="mt-4 text-sm text-[#5c5146]">
-            영업시간 <span className="font-medium text-[#2a2118]">{store.hours}</span>
-          </p>
-        ) : null}
-
-        {storeTags(store).length ? (
-          <>
-            <h3 className="mt-5 text-xs font-semibold tracking-wide text-[#8a7b6c]">이 가게에서</h3>
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-              {storeTags(store).map((item) => (
-                <li key={item} className="rounded-full bg-[#f6ebe1] px-3 py-1 text-xs font-medium text-[#6a3a32]">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
+        <h3 className="mt-5 text-xs font-semibold tracking-wide text-[#8a7b6c]">메뉴</h3>
+        {menu.length ? (
+          <ul className="mt-2 space-y-2">
+            {menu.map((item) => (
+              <li
+                key={item}
+                className="rounded-2xl bg-[#f6ebe1] px-3.5 py-2.5 text-sm font-medium text-[#2a2118]"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-[#8a7b6c]">메뉴 정보가 아직 없습니다.</p>
+        )}
       </div>
     </div>
   );
