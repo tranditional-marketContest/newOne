@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { applyDraft } from "@/lib/apply";
 import { coerceOrganized } from "@/lib/organize";
@@ -8,7 +7,6 @@ import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase } from "@/lib/supabase/wiki";
 import type { EditorDraft, OrganizedWiki, Store } from "@/lib/types";
-import { BackIcon } from "./icons";
 import StoreDetail from "./StoreDetail";
 import StoreEditor from "./StoreEditor";
 import StoreList from "./StoreList";
@@ -214,19 +212,10 @@ export default function WikiApp() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f3ecdf]">
-      <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-1 md:px-5">
-        <Link
-          href="/"
-          aria-label="메인 지도로"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#2a2118] shadow-sm ring-1 ring-[#2a2118]/10"
-        >
-          <BackIcon className="h-6 w-6" />
-        </Link>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-[#c4492c]">신원시장</p>
-          <h1 className="text-2xl font-bold tracking-tight">신원위키</h1>
-        </div>
+    <div className="flex h-dvh flex-col">
+      <header className="px-4 pt-4 pb-1 md:px-5">
+        <p className="text-xs font-semibold tracking-wide text-[#c4492c]">신원시장</p>
+        <h1 className="text-2xl font-bold tracking-tight">신원위키</h1>
       </header>
       <main className="grid min-h-0 flex-1 gap-3 p-3 md:grid-cols-[300px_minmax(0,1fr)] md:px-5 md:pb-5">
         <div className={`h-full min-h-0 ${panel === "list" ? "block" : "hidden md:block"}`}>
