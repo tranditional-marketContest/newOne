@@ -1,3 +1,5 @@
+import { orderByOpenRoad, roadHeading, walkCourse } from "./block-road";
+
 export type Mood = "데이트" | "구경" | "맛집" | "산책";
 export type Budget = "알뜰" | "보통" | "푸짐";
 
@@ -69,14 +71,14 @@ function shop(
 }
 
 export const entrances: Entrance[] = [
-  { id: "n1", name: "1번 입구", ...spot(-0.02), faceX: 0.5, faceY: 0.86 },
-  { id: "n2", name: "2번 입구", ...spot(0.08, -1), faceX: 0.7, faceY: 0.7 },
-  { id: "n3", name: "3번 입구", ...spot(0.32, -1), faceX: 0.85, faceY: 0.4 },
-  { id: "n4", name: "4번 입구", ...spot(0.62, -1), faceX: 0.8, faceY: 0.5 },
-  { id: "n5", name: "5번 입구", ...spot(0.98), faceX: -0.5, faceY: -0.86 },
-  { id: "n6", name: "6번 입구", ...spot(0.9, 1), faceX: -0.7, faceY: -0.6 },
-  { id: "n7", name: "7번 입구", ...spot(0.5, 1), faceX: -0.9, faceY: 0.2 },
-  { id: "n8", name: "8번 입구", ...spot(0.16, 1), faceX: -0.4, faceY: 0.9 },
+  { id: "n1", name: "1번 입구", x: 15.8, y: 37.1, faceX: 0, faceY: 1 },
+  { id: "n2", name: "2번 입구", x: 44.1, y: 37.1, faceX: 0, faceY: 1 },
+  { id: "n3", name: "3번 입구", x: 74.4, y: 37.1, faceX: 0, faceY: 1 },
+  { id: "n4", name: "4번 입구", x: 86.1, y: 56.2, faceX: -1, faceY: 0 },
+  { id: "n5", name: "5번 입구", x: 71.8, y: 84.1, faceX: 0, faceY: -1 },
+  { id: "n6", name: "6번 입구", x: 35.3, y: 66.4, faceX: 0, faceY: 1 },
+  { id: "n7", name: "7번 입구", x: 9.7, y: 58.5, faceX: 1, faceY: 0 },
+  { id: "n8", name: "8번 입구", x: 9.7, y: 88.7, faceX: 1, faceY: 0 },
 ];
 
 export const shops: Shop[] = [
@@ -114,8 +116,8 @@ export const shops: Shop[] = [
     name: "별빛내린천 분수",
     category: "수변",
     stars: 3,
-    x: 44.5,
-    y: 48.5,
+    x: 27.5,
+    y: 37.1,
     note: "천변 분수",
     moods: ["데이트", "구경", "산책"],
     budget: ["알뜰", "보통", "푸짐"],
@@ -128,8 +130,8 @@ export const shops: Shop[] = [
     name: "음악분수",
     category: "수변",
     stars: 3,
-    x: 56.5,
-    y: 61.5,
+    x: 50.9,
+    y: 37.1,
     note: "정오, 오후 7시, 오후 8시",
     moods: ["데이트", "구경", "산책"],
     budget: ["알뜰", "보통", "푸짐"],
@@ -142,8 +144,8 @@ export const shops: Shop[] = [
     name: "육교",
     category: "수변",
     stars: 3,
-    x: 63.5,
-    y: 70.5,
+    x: 68.5,
+    y: 37.1,
     note: "별빛내린천을 건너는 다리",
     moods: ["데이트", "구경", "산책"],
     budget: ["알뜰", "보통", "푸짐"],
@@ -152,6 +154,46 @@ export const shops: Shop[] = [
     kind: "place",
   },
 ];
+
+const blockByName: Record<string, { x: number; y: number }> = {
+  신림당떡집: { x: 18.4, y: 43.4 },
+  독립문떡집: { x: 24.8, y: 43.4 },
+  베들레헴떡집: { x: 34.5, y: 43.6 },
+  떡수레: { x: 27.1, y: 43.6 },
+  엄마손반찬: { x: 40.3, y: 43.6 },
+  진미웰빙반찬: { x: 48.7, y: 43.6 },
+  진도반찬: { x: 64.1, y: 43.6 },
+  순옥이네연변반찬가게: { x: 58.1, y: 43.6 },
+  과일나라: { x: 79.4, y: 43.4 },
+  영광과일: { x: 72.7, y: 43.4 },
+  고은이네: { x: 84.1, y: 43.4 },
+  소문난야채: { x: 21.1, y: 56.4 },
+  건우축산: { x: 24.8, y: 53.4 },
+  성암축산정육점식당: { x: 39.7, y: 52.9 },
+  목포수산: { x: 35, y: 52.7 },
+  "신원 호떡": { x: 60.3, y: 58 },
+  오떡순: { x: 76.2, y: 52.4 },
+  "시장 탕수육": { x: 84.3, y: 52.9 },
+  불꽃닭강정: { x: 79.5, y: 63.8 },
+  송이네닭집: { x: 23.9, y: 89.9 },
+  아저씨강정: { x: 24.7, y: 69.7 },
+  명성왕족발: { x: 18.8, y: 70.1 },
+  소문난순대집: { x: 36.2, y: 87.1 },
+  소문난순대국: { x: 35.1, y: 69.7 },
+  장터순대국: { x: 45.8, y: 81.7 },
+  두명전집: { x: 47.1, y: 98.5 },
+  중국식품: { x: 73, y: 81 },
+  정종중국식품: { x: 76.1, y: 98.5 },
+  신림기름집: { x: 91, y: 88.3 },
+};
+
+for (const shop of shops) {
+  const block = blockByName[shop.name];
+  if (block) {
+    shop.x = block.x;
+    shop.y = block.y;
+  }
+}
 
 const quickCourseDefs = [
   {
@@ -243,14 +285,18 @@ export function buildSteps(entrance: Entrance, ordered: Shop[]): Step[] {
   let prevY = entrance.y - entrance.faceY;
   let cursor = { x: entrance.x, y: entrance.y };
 
+  const walked = walkCourse(ordered);
   ordered.forEach((shop, index) => {
-    const turn = turnOf(cursor.x - prevX, cursor.y - prevY, shop.x - cursor.x, shop.y - cursor.y);
+    const leg = index === 0 ? null : walked.legs[index - 1];
+    const ahead = leg?.depart ?? roadHeading(cursor, shop) ?? { x: shop.x - cursor.x, y: shop.y - cursor.y };
+    const turn = turnOf(cursor.x - prevX, cursor.y - prevY, ahead.x, ahead.y);
     if (index === 0) {
       steps.push({ text: `${entrance.name}로 입장 후 ${turn}` });
     }
     steps.push({ text: turn === "직진" ? `직진하여 ${shop.name}` : `${turn} 후 ${shop.name}` });
-    prevX = cursor.x;
-    prevY = cursor.y;
+    const arrival = leg?.arrive ?? roadHeading(cursor, shop, true);
+    prevX = arrival ? shop.x - arrival.x : cursor.x;
+    prevY = arrival ? shop.y - arrival.y : cursor.y;
     cursor = shop;
   });
 
@@ -300,20 +346,18 @@ function chooseEntrance(picked: Shop[], answers: Answers) {
   );
 }
 
+function pinEnds(stops: Shop[]) {
+  const first = stops.findIndex((stop) => stop.kind !== "place");
+  let last = stops.length - 1;
+  while (last > first && stops[last]?.kind === "place") last -= 1;
+  if (first <= 0 && last === stops.length - 1) return stops;
+  if (first < 0 || last <= first) return stops;
+  const middle = stops.filter((_, index) => index !== first && index !== last);
+  return [stops[first], ...middle, stops[last]];
+}
+
 function orderFromEntrance(entrance: Entrance, picked: Shop[]) {
-  const remaining = [...picked];
-  const ordered: Shop[] = [];
-  let cursor: { x: number; y: number } = entrance;
-  while (remaining.length > 0) {
-    let nearest = 0;
-    for (let index = 1; index < remaining.length; index += 1) {
-      if (distance(cursor, remaining[index]) < distance(cursor, remaining[nearest])) nearest = index;
-    }
-    const [next] = remaining.splice(nearest, 1);
-    ordered.push(next);
-    cursor = next;
-  }
-  return ordered;
+  return pinEnds(orderByOpenRoad(entrance, picked));
 }
 
 export function buildGeneratedCourse(title: string, entranceId: string, shopIds: string[]): CourseResult {

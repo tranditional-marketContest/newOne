@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   buildGeneratedCourse,
   buildQuickCourse,
@@ -8,6 +8,8 @@ import {
   shops,
   type CourseResult,
 } from "@/lib/course";
+import { roadPolyline } from "@/lib/block-road";
+import { loadMapPins, type MapPin } from "@/lib/map-pins";
 
 type Phase = "home" | "quick" | "ask" | "result";
 type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -36,6 +38,17 @@ export function CourseApp() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState("");
   const [chatError, setChatError] = useState("");
+  const [pins, setPins] = useState<MapPin[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    loadMapPins().then((rows) => {
+      if (live) setPins(rows);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   function goHome() {
     setPhase("home");
@@ -99,45 +112,52 @@ export function CourseApp() {
   }
 
   const showAllDots = phase !== "result";
-  const route = course && phase === "result" ? [course.entrance, ...course.shops] : [];
+  const route = course && phase === "result" ? course.shops : [];
+  const routeLine = route.length > 1 ? roadPolyline(route) : "";
+  const shopPins: MapPin[] =
+    pins.length > 0
+      ? pins
+      : shops
+          .filter((item) => item.kind !== "place")
+          .map((item) => ({ id: item.id, name: item.name, x: item.x, y: item.y }));
+  const resultPins =
+    course?.shops
+      .filter((item) => item.kind !== "place")
+      .map((item) => shopPins.find((pin) => pin.name === item.name) ?? { id: item.id, name: item.name, x: item.x, y: item.y }) ??
+    [];
 
   return (
     <main className="flex h-[min(100dvh,calc(100vw*16/9))] w-[min(100vw,calc(100dvh*9/16))] flex-col overflow-hidden bg-[#f7f6f3] text-[#1c1915]">
-      <div className="relative w-full shrink-0" style={{ aspectRatio: "700 / 740" }}>
-        <img src="/market-map.png" alt="신림역과 별빛내린천, 신원시장 지도" className="absolute inset-0 h-full w-full" />
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" aria-hidden="true">
-          {route.length > 1 ? (
-            <polyline
-              points={route.map((item) => `${item.x},${item.y}`).join(" ")}
-              fill="none"
-              stroke="#16a34a"
-              strokeWidth="1.1"
-              strokeDasharray="1.6 1.1"
-              strokeLinejoin="round"
-              strokeLinecap="round"
+      <div className="relative w-full shrink-0">
+        <div className="relative w-full" style={{ aspectRatio: "1024 / 430" }}>
+          <img src="/block-map.jpg" alt="신원시장 지도" className="absolute inset-0 h-full w-full" />
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {routeLine ? (
+              <polyline
+                points={routeLine}
+                fill="none"
+                stroke="#16a34a"
+                strokeWidth="3"
+                strokeLinejoin="miter"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : null}
+          </svg>
+          {(showAllDots ? shopPins : resultPins).map((item) => (
+            <span
+              key={item.id}
+              title={item.name}
+              className="absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e23a2b] shadow-[0_0_0_3px_rgba(226,58,43,0.22)]"
+              style={point(item)}
             />
-          ) : null}
-        </svg>
-        {showAllDots
-          ? shops.map((item) => (
-              <span
-                key={item.id}
-                title={item.name}
-                className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e11d48] ring-2 ring-white"
-                style={point(item)}
-              />
-            ))
-          : null}
-        {phase === "result" && course
-          ? course.shops.map((item) => (
-              <span
-                key={item.id}
-                title={item.name}
-                className="absolute z-10 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e11d48] ring-2 ring-white"
-                style={point(item)}
-              />
-            ))
-          : null}
+          ))}
+        </div>
 
         {phase !== "home" ? (
           <button
@@ -148,24 +168,6 @@ export function CourseApp() {
           >
             ←
           </button>
-        ) : null}
-
-        {phase === "quick" ? (
-          <div className="absolute inset-x-3 bottom-4 z-20 grid grid-cols-2 gap-2">
-            {quickCourses.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setCourse(buildQuickCourse(item.id));
-                  setPhase("result");
-                }}
-                className="min-h-20 rounded-xl bg-white/95 px-3 py-2 text-lg leading-6 font-bold shadow"
-              >
-                {item.title}
-              </button>
-            ))}
-          </div>
         ) : null}
       </div>
 
@@ -225,7 +227,7 @@ export function CourseApp() {
         </section>
       ) : null}
 
-      {phase === "home" || phase === "quick" ? (
+      {phase === "home" ? (
         <div className="my-auto grid w-full grid-cols-2 gap-3 px-3 py-4">
           <button
             type="button"
@@ -241,6 +243,24 @@ export function CourseApp() {
           >
             AI 맞춤 코스 생성
           </button>
+        </div>
+      ) : null}
+
+      {phase === "quick" ? (
+        <div className="my-auto grid w-full grid-cols-2 gap-3 px-3 py-4">
+          {quickCourses.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setCourse(buildQuickCourse(item.id));
+                setPhase("result");
+              }}
+              className="flex min-h-20 items-center justify-center rounded-xl bg-white px-3 py-2 text-center text-lg leading-6 font-bold shadow"
+            >
+              {item.title}
+            </button>
+          ))}
         </div>
       ) : null}
       </aside>
