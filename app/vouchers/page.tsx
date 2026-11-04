@@ -33,7 +33,7 @@ export default function VouchersPage() {
     <PhoneShell>
         <header className="flex items-center gap-3">
           <Link
-            href="/"
+            href="/mypage"
             className="flex size-10 items-center justify-center rounded-xl text-[#234237]"
             aria-label="마이페이지로 돌아가기"
           >
@@ -55,7 +55,7 @@ export default function VouchersPage() {
               상품권을 보려면 먼저 로그인해 주세요.
             </p>
             <Link
-              href="/"
+              href="/mypage"
               className="mt-5 inline-flex h-12 items-center justify-center rounded-2xl bg-[#234237] px-5 text-[15px] font-bold text-white"
             >
               로그인하러 가기
