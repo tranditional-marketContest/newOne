@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+<<<<<<< HEAD
 :root {
   --background: #e7d7c6;
   --foreground: #2a2118;
@@ -127,4 +128,56 @@ body {
     animation: none;
     transition: none;
   }
+=======
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: #f7f3ea;
+}
+
+.ticket-dash::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  border-left: 1.5px dashed #d7cebf;
+}
+
+.ticket-notch {
+  position: absolute;
+  right: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #f7f3ea;
+}
+
+.ticket-notch-top {
+  top: -9px;
+}
+
+.ticket-notch-bottom {
+  bottom: -9px;
+}
+
+@keyframes voucher-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.voucher-enter {
+  animation: voucher-enter 420ms ease both;
+>>>>>>> origin/seohyeon_logIn
 }

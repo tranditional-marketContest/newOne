@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
@@ -23,3 +24,20 @@ export function isSupabaseConfigured(): boolean {
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() && getSupabaseKey(),
   );
 }
+=======
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn(
+    "NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY가 없습니다.",
+  );
+}
+
+export const supabase = createClient(
+  supabaseUrl ?? "",
+  supabaseKey ?? "",
+);
+>>>>>>> origin/seohyeon_logIn
