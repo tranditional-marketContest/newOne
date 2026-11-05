@@ -128,8 +128,15 @@ export function CourseApp() {
 
   return (
     <main className="flex h-[min(100dvh,calc(100vw*16/9))] w-[min(100vw,calc(100dvh*9/16))] flex-col overflow-hidden bg-[#f7f6f3] text-[#1c1915]">
-      <div className="relative w-full shrink-0">
-        <div className="relative w-full" style={{ aspectRatio: "1024 / 430" }}>
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden [container-type:size]">
+        <div
+          className="absolute top-1/2 left-1/2"
+          style={{
+            width: "min(100cqh, calc(100cqw * 1024 / 430))",
+            height: "min(100cqw, calc(100cqh * 430 / 1024))",
+            transform: "translate(-50%, -50%) rotate(-90deg)",
+          }}
+        >
           <img src="/block-map.jpg" alt="신원시장 지도" className="absolute inset-0 h-full w-full" />
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
@@ -171,7 +178,7 @@ export function CourseApp() {
         ) : null}
       </div>
 
-      <aside className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <aside className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-y-auto">
       {phase === "result" && course ? (
         <section className="flex flex-col gap-3 px-4 pt-4 pb-8">
           <p className="text-lg font-semibold text-[#57534e]">&lt; {course.modeLabel} &gt;</p>
