@@ -70,15 +70,35 @@ function shop(
   return { id, name, category, stars, ...spot(t, lane), note, moods, budget, indoor, crowd };
 }
 
+const GREEN_Y = 31.9;
+const FAR_GREEN_Y = 18.1;
+
+function place(id: string, name: string, x: number, note: string, crowd: Shop["crowd"], y = GREEN_Y): Shop {
+  return {
+    id,
+    name,
+    category: "수변",
+    stars: 3,
+    x,
+    y,
+    note,
+    moods: ["데이트", "구경", "산책"],
+    budget: ["알뜰", "보통", "푸짐"],
+    indoor: false,
+    crowd,
+    kind: "place",
+  };
+}
+
 export const entrances: Entrance[] = [
   { id: "n1", name: "1번 입구", x: 15.8, y: 37.1, faceX: 0, faceY: 1 },
   { id: "n2", name: "2번 입구", x: 44.1, y: 37.1, faceX: 0, faceY: 1 },
   { id: "n3", name: "3번 입구", x: 74.4, y: 37.1, faceX: 0, faceY: 1 },
   { id: "n4", name: "4번 입구", x: 86.1, y: 56.2, faceX: -1, faceY: 0 },
-  { id: "n5", name: "5번 입구", x: 71.8, y: 84.1, faceX: 0, faceY: -1 },
-  { id: "n6", name: "6번 입구", x: 35.3, y: 66.4, faceX: 0, faceY: 1 },
+  { id: "n5", name: "5번 입구", x: 71.4, y: 66.5, faceX: 0, faceY: -1 },
+  { id: "n6", name: "6번 입구", x: 35.3, y: 66.5, faceX: 0, faceY: -1 },
   { id: "n7", name: "7번 입구", x: 9.7, y: 58.5, faceX: 1, faceY: 0 },
-  { id: "n8", name: "8번 입구", x: 9.7, y: 88.7, faceX: 1, faceY: 0 },
+  { id: "n8", name: "8번 입구", x: 55, y: 66.5, faceX: 0, faceY: -1 },
 ];
 
 export const shops: Shop[] = [
@@ -111,49 +131,15 @@ export const shops: Shop[] = [
   shop("china", "중국식품", "식료품", 0, 0.36, 1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰", "보통"], true, "한산"),
   shop("jeongjong", "정종중국식품", "식료품", 0, 0.55, -1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰"], true, "한산"),
   shop("oil", "신림기름집", "식료품", 0, 0.92, 1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰", "보통"], true, "한산"),
-  {
-    id: "stream-fountain",
-    name: "별빛내린천 분수",
-    category: "수변",
-    stars: 3,
-    x: 27.5,
-    y: 37.1,
-    note: "천변 분수",
-    moods: ["데이트", "구경", "산책"],
-    budget: ["알뜰", "보통", "푸짐"],
-    indoor: false,
-    crowd: "한산",
-    kind: "place",
-  },
-  {
-    id: "music-fountain",
-    name: "음악분수",
-    category: "수변",
-    stars: 3,
-    x: 50.9,
-    y: 37.1,
-    note: "정오, 오후 7시, 오후 8시",
-    moods: ["데이트", "구경", "산책"],
-    budget: ["알뜰", "보통", "푸짐"],
-    indoor: false,
-    crowd: "보통",
-    kind: "place",
-  },
-  {
-    id: "footbridge",
-    name: "육교",
-    category: "수변",
-    stars: 3,
-    x: 68.5,
-    y: 37.1,
-    note: "별빛내린천을 건너는 다리",
-    moods: ["데이트", "구경", "산책"],
-    budget: ["알뜰", "보통", "푸짐"],
-    indoor: false,
-    crowd: "한산",
-    kind: "place",
-  },
+  place("stream-fountain", "별빛내린천 분수", 22.5, "천변 분수", "한산"),
+  place("stone-path", "돌길", 32.2, "천변 따라 걷는 돌길", "한산", FAR_GREEN_Y),
+  place("music-fountain", "음악분수", 41, "정오, 오후 7시, 오후 8시", "보통"),
+  place("mural", "벽화", 50.8, "천변 벽화 거리", "한산"),
+  place("footbridge", "육교", 63.5, "별빛내린천을 건너는 다리", "한산", FAR_GREEN_Y),
+  place("flower-path", "꽃길", 76.2, "계절 꽃이 피는 산책길", "한산"),
 ];
+
+export const MIN_GREEN_STOPS = 2;
 
 const blockByName: Record<string, { x: number; y: number }> = {
   신림당떡집: { x: 18.4, y: 43.4 },
@@ -175,16 +161,16 @@ const blockByName: Record<string, { x: number; y: number }> = {
   오떡순: { x: 76.2, y: 52.4 },
   "시장 탕수육": { x: 84.3, y: 52.9 },
   불꽃닭강정: { x: 79.5, y: 63.8 },
-  송이네닭집: { x: 23.9, y: 89.9 },
-  아저씨강정: { x: 24.7, y: 69.7 },
-  명성왕족발: { x: 18.8, y: 70.1 },
-  소문난순대집: { x: 36.2, y: 87.1 },
-  소문난순대국: { x: 35.1, y: 69.7 },
-  장터순대국: { x: 45.8, y: 81.7 },
-  두명전집: { x: 47.1, y: 98.5 },
-  중국식품: { x: 73, y: 81 },
-  정종중국식품: { x: 76.1, y: 98.5 },
-  신림기름집: { x: 91, y: 88.3 },
+  명성왕족발: { x: 13.7, y: 53.5 },
+  아저씨강정: { x: 13.7, y: 61.5 },
+  송이네닭집: { x: 29.8, y: 53.5 },
+  소문난순대집: { x: 29.8, y: 61.5 },
+  소문난순대국: { x: 45.2, y: 53.5 },
+  장터순대국: { x: 45.2, y: 61.5 },
+  두명전집: { x: 52.8, y: 57.5 },
+  중국식품: { x: 67.7, y: 53.5 },
+  정종중국식품: { x: 67.7, y: 61.5 },
+  신림기름집: { x: 91.3, y: 56 },
 };
 
 for (const shop of shops) {
@@ -249,6 +235,12 @@ function withPlaces(entrance: Entrance, picked: Shop[], placeIds: string[]) {
   const places = placeIds
     .map((id) => shops.find((item) => item.id === id && item.kind === "place"))
     .filter((item): item is Shop => Boolean(item) && !seen.has(item.id));
+  const anchors = [entrance, ...picked];
+  const nearness = (item: Shop) => Math.min(...anchors.map((anchor) => distance(anchor, item)));
+  const spare = shops
+    .filter((item) => item.kind === "place" && !places.some((chosen) => chosen.id === item.id))
+    .sort((a, b) => nearness(a) - nearness(b));
+  while (places.length < MIN_GREEN_STOPS && spare.length > 0) places.push(spare.shift()!);
   return orderFromEntrance(entrance, [...picked, ...places]);
 }
 

@@ -70,8 +70,42 @@ function cellAt(col: number, row: number) {
   return row * COLS + col;
 }
 
+export const VISIBLE_TOP_PX = 58;
+export const VISIBLE_BOTTOM_PX = 291;
+const FIRST_ROW = Math.ceil(VISIBLE_TOP_PX / BLOCK_ROAD_STEP);
+const LAST_ROW = Math.floor(VISIBLE_BOTTOM_PX / BLOCK_ROAD_STEP) - 1;
+
+const DETOUR_LAST_ROW = 67;
+const DETOUR_LAST_COL = 119;
+const RIVER_FIRST_ROW = 35;
+const RIVER_LAST_ROW = 72;
+const BRIDGES = [
+  { from: 285, to: 300 },
+  { from: 435, to: 455 },
+];
+
 function walkable(index: number) {
-  return index >= 0 && index < CELLS && (bytes[index >> 3] & (1 << (index & 7))) !== 0;
+  if (index < 0 || index >= CELLS) return false;
+  const row = (index / COLS) | 0;
+  if (row < FIRST_ROW || row > LAST_ROW) return false;
+  if (row <= DETOUR_LAST_ROW && index % COLS <= DETOUR_LAST_COL) return false;
+  return (bytes[index >> 3] & (1 << (index & 7))) !== 0;
+}
+
+function bridgeAt(index: number) {
+  const row = (index / COLS) | 0;
+  if (row < RIVER_FIRST_ROW || row > RIVER_LAST_ROW) return -1;
+  const col = index % COLS;
+  return BRIDGES.findIndex((bridge) => col >= bridge.from && col <= bridge.to);
+}
+
+function lastBridge(cells: number[], fallback: number) {
+  let found = fallback;
+  for (const cell of cells) {
+    const bridge = bridgeAt(cell);
+    if (bridge >= 0) found = bridge;
+  }
+  return found;
 }
 
 buildRoadIds();
@@ -276,7 +310,7 @@ function snapOpen(x: number, y: number) {
   return -1;
 }
 
-function searchOpen(start: number, goal: number, bans: RoadBan[]) {
+function searchOpen(start: number, goal: number, bans: RoadBan[], closedBridge = -1) {
   if (start < 0 || goal < 0 || !walkable(goal)) return null;
   if (start === goal) return [start];
   const seen: number[] = [];
@@ -301,7 +335,13 @@ function searchOpen(start: number, goal: number, bans: RoadBan[]) {
     let index = 0;
     while (index < next.length) {
       const candidate = next[index];
-      if (candidate >= 0 && parent[candidate] === -1 && walkable(candidate) && !opposite(current, candidate, bans)) {
+      if (
+        candidate >= 0 &&
+        parent[candidate] === -1 &&
+        walkable(candidate) &&
+        (closedBridge < 0 || bridgeAt(candidate) !== closedBridge) &&
+        !opposite(current, candidate, bans)
+      ) {
         parent[candidate] = current;
         queue[tail] = candidate;
         tail += 1;
@@ -327,6 +367,14 @@ function searchOpen(start: number, goal: number, bans: RoadBan[]) {
     index += 1;
   }
   return cells.length > 0 ? cells : null;
+}
+
+function searchLeg(start: number, goal: number, bans: RoadBan[], closedBridge: number) {
+  return (
+    searchOpen(start, goal, bans, closedBridge) ??
+    searchOpen(start, goal, [], closedBridge) ??
+    searchOpen(start, goal, [], -1)
+  );
 }
 
 function spanClear(col0: number, row0: number, col1: number, row1: number) {
@@ -543,6 +591,8 @@ export function orderByOpenRoad<T extends MapPoint>(origin: MapPoint, stops: T[]
     index += 1;
   }
   const ordered = [pool.splice(best, 1)[0]];
+  const firstLeg = searchOpen(snapOpen(origin.x, origin.y), snapOpen(ordered[0].x, ordered[0].y), []);
+  let usedBridge = firstLeg ? lastBridge(firstLeg, -1) : -1;
   while (pool.length > 0) {
     const from = ordered[ordered.length - 1];
     let pick = -1;
@@ -550,7 +600,7 @@ export function orderByOpenRoad<T extends MapPoint>(origin: MapPoint, stops: T[]
     let pickCells: number[] | null = null;
     index = 0;
     while (index < pool.length) {
-      const cells = searchOpen(snapOpen(from.x, from.y), snapOpen(pool[index].x, pool[index].y), bans);
+      const cells = searchLeg(snapOpen(from.x, from.y), snapOpen(pool[index].x, pool[index].y), bans, usedBridge);
       if (cells && cells.length - 1 < pickHops) {
         pickHops = cells.length - 1;
         pick = index;
@@ -560,6 +610,7 @@ export function orderByOpenRoad<T extends MapPoint>(origin: MapPoint, stops: T[]
     }
     if (pick < 0 || !pickCells) break;
     banAxis(pullAxis(pickCells), bans);
+    usedBridge = lastBridge(pickCells, usedBridge);
     ordered.push(pool.splice(pick, 1)[0]);
   }
   return ordered;
@@ -572,12 +623,14 @@ export function walkCourse(points: MapPoint[]) {
   if (points.length === 0) return { line: "", legs };
   drawn.push(points[0]);
   let door = snapOpen(points[0].x, points[0].y);
+  let usedBridge = -1;
   let index = 0;
   while (index < points.length - 1) {
     const to = points[index + 1];
     const goalDoor = snapOpen(to.x, to.y);
-    const cells = searchOpen(door, goalDoor, bans);
+    const cells = searchLeg(door, goalDoor, bans, usedBridge);
     if (!cells) break;
+    usedBridge = lastBridge(cells, usedBridge);
     const axis = trimEnds(smoothJogs(pullAxis(cells)));
     banAxis(axis, bans);
     let point = 0;

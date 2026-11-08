@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   buildGeneratedCourse,
   buildQuickCourse,
@@ -10,13 +17,47 @@ import {
 } from "@/lib/course";
 import { roadPolyline } from "@/lib/block-road";
 import { loadMapPins, type MapPin } from "@/lib/map-pins";
+import { CategoryIcon } from "./category-icon";
 
 type Phase = "home" | "quick" | "ask" | "result";
 type ChatMessage = { role: "user" | "assistant"; text: string };
 
-function point(item: { x: number; y: number }) {
-  return { left: `${item.x}%`, top: `${item.y}%` };
+const CROP_TOP = (58 / 430) * 100;
+const CROP_BOTTOM = (291 / 430) * 100;
+const MAP_RATIO = 1024 / 233;
+const MAX_SCALE = 4;
+
+function toVertical(item: { x: number; y: number }) {
+  return { x: ((CROP_BOTTOM - item.y) / (CROP_BOTTOM - CROP_TOP)) * 100, y: item.x };
 }
+
+function clampAxis(offset: number, view: number, size: number) {
+  if (size <= view) return (view - size) / 2;
+  return Math.min(0, Math.max(view - size, offset));
+}
+
+function point(item: { x: number; y: number }) {
+  const turned = toVertical(item);
+  return {
+    left: `clamp(14px, ${turned.x}%, calc(100% - 14px))`,
+    top: `clamp(14px, ${turned.y}%, calc(100% - 14px))`,
+  };
+}
+
+function verticalLine(line: string) {
+  return line
+    .split(" ")
+    .filter(Boolean)
+    .map((pair) => {
+      const [x, y] = pair.split(",").map(Number);
+      const turned = toVertical({ x, y });
+      return `${Math.round(turned.x * 100) / 100},${Math.round(turned.y * 100) / 100}`;
+    })
+    .join(" ");
+}
+
+const categoryByName = new Map(shops.map((item) => [item.name, item.category]));
+const allPlaces = shops.filter((item) => item.kind === "place");
 
 async function postChat(mode: "chat" | "generate", messages: ChatMessage[]) {
   const response = await fetch("/api/course-chat", {
@@ -39,6 +80,97 @@ export function CourseApp() {
   const [reply, setReply] = useState("");
   const [chatError, setChatError] = useState("");
   const [pins, setPins] = useState<MapPin[]>([]);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState({ width: 0, height: 0 });
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(
+    null,
+  );
+
+  const minScale = view.width > 0 ? Math.min(1, view.height / (view.width * MAP_RATIO)) : 1;
+
+  const clampOffset = useCallback(
+    (next: { x: number; y: number }, nextScale: number) => ({
+      x: clampAxis(next.x, view.width, view.width * nextScale),
+      y: clampAxis(next.y, view.height, view.width * MAP_RATIO * nextScale),
+    }),
+    [view],
+  );
+
+  const zoomAt = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      const el = viewportRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cx = clientX - rect.left;
+      const cy = clientY - rect.top;
+      const next = Math.min(MAX_SCALE, Math.max(minScale, scale * factor));
+      const ratio = next / scale;
+      setScale(next);
+      setOffset((off) => clampOffset({ x: cx - (cx - off.x) * ratio, y: cy - (cy - off.y) * ratio }, next));
+    },
+    [clampOffset, minScale, scale],
+  );
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setView({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setOffset((off) => clampOffset(off, scale));
+  }, [clampOffset, scale]);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomAt]);
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture can fail outside a real pointer gesture; dragging still works while the pointer stays on the map.
+    }
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setOffset(
+      clampOffset(
+        { x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY },
+        scale,
+      ),
+    );
+  }
+
+  function zoomBy(factor: number) {
+    const el = viewportRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  }
 
   useEffect(() => {
     let live = true;
@@ -113,7 +245,7 @@ export function CourseApp() {
 
   const showAllDots = phase !== "result";
   const route = course && phase === "result" ? course.shops : [];
-  const routeLine = route.length > 1 ? roadPolyline(route) : "";
+  const routeLine = route.length > 1 ? verticalLine(roadPolyline(route)) : "";
   const shopPins: MapPin[] =
     pins.length > 0
       ? pins
@@ -125,19 +257,38 @@ export function CourseApp() {
       .filter((item) => item.kind !== "place")
       .map((item) => shopPins.find((pin) => pin.name === item.name) ?? { id: item.id, name: item.name, x: item.x, y: item.y }) ??
     [];
+  const greenPins = showAllDots ? allPlaces : (course?.shops.filter((item) => item.kind === "place") ?? []);
 
   return (
     <main className="flex h-[min(100dvh,calc(100vw*16/9))] w-[min(100vw,calc(100dvh*9/16))] flex-col overflow-hidden bg-[#f7f6f3] text-[#1c1915]">
-      <div className="relative min-h-0 w-full flex-1 overflow-hidden [container-type:size]">
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden">
         <div
-          className="absolute top-1/2 left-1/2"
-          style={{
-            width: "min(100cqh, calc(100cqw * 1024 / 430))",
-            height: "min(100cqw, calc(100cqh * 430 / 1024))",
-            transform: "translate(-50%, -50%) rotate(-90deg)",
+          ref={viewportRef}
+          className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
+          role="application"
+          aria-label="지도"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={(event) => {
+            if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
           }}
         >
-          <img src="/block-map.jpg" alt="신원시장 지도" className="absolute inset-0 h-full w-full" />
+        <div
+          className="absolute top-0 left-0 w-full origin-top-left will-change-transform"
+          style={{
+            aspectRatio: `1 / ${MAP_RATIO}`,
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          }}
+        >
+          <img
+            src="/block-map-vertical.jpg"
+            alt="신원시장 지도"
+            draggable={false}
+            className="pointer-events-none absolute inset-0 h-full w-full"
+          />
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox="0 0 100 100"
@@ -156,14 +307,46 @@ export function CourseApp() {
               />
             ) : null}
           </svg>
+          {greenPins.map((item) => (
+            <span
+              key={item.id}
+              title={item.name}
+              className="absolute z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#16a34a] text-white shadow-[0_0_0_3px_rgba(22,163,74,0.25)]"
+              style={{ ...point(item), scale: 1 / scale }}
+            >
+              <CategoryIcon category="수변" className="size-4" />
+            </span>
+          ))}
           {(showAllDots ? shopPins : resultPins).map((item) => (
             <span
               key={item.id}
               title={item.name}
-              className="absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e23a2b] shadow-[0_0_0_3px_rgba(226,58,43,0.22)]"
-              style={point(item)}
-            />
+              className="absolute z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#e23a2b] text-white shadow-[0_0_0_3px_rgba(226,58,43,0.22)]"
+              style={{ ...point(item), scale: 1 / scale }}
+            >
+              <CategoryIcon category={categoryByName.get(item.name) ?? ""} className="size-4" />
+            </span>
           ))}
+        </div>
+        </div>
+
+        <div className="absolute right-3 bottom-3 z-30 flex flex-col gap-2">
+          <button
+            type="button"
+            className="flex size-11 items-center justify-center rounded-xl bg-white/95 text-2xl font-bold text-[#234237] shadow-[0_2px_10px_rgba(28,25,21,0.12)]"
+            aria-label="확대"
+            onClick={() => zoomBy(1.25)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="flex size-11 items-center justify-center rounded-xl bg-white/95 text-2xl font-bold text-[#234237] shadow-[0_2px_10px_rgba(28,25,21,0.12)]"
+            aria-label="축소"
+            onClick={() => zoomBy(1 / 1.25)}
+          >
+            −
+          </button>
         </div>
 
         {phase !== "home" ? (
