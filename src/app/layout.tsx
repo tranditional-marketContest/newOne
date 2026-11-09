@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Gowun_Batang, Noto_Sans_KR } from "next/font/google";
+import { AppFrame } from "@/components/AppFrame";
 import { MatchingStoreProvider } from "@/lib/matching-store";
 import "./globals.css";
 
@@ -39,7 +40,9 @@ export default function RootLayout({
     <html lang="ko" className={`${display.variable} ${body.variable} h-full`}>
       <body className="min-h-full antialiased">
         <MatchingStoreProvider>
-          <div className="app-shell">{children}</div>
+          <AppFrame>
+            <div className="app-shell">{children}</div>
+          </AppFrame>
         </MatchingStoreProvider>
       </body>
     </html>
