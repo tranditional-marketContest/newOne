@@ -17,7 +17,7 @@ export function PostDetailClient({ id }: { id: string }) {
 
   if (!ready) {
     return (
-      <main className="min-h-dvh">
+      <main className="min-h-full">
         <MatchingHeader backHref="/matching" title="게시글" showBell={false} />
         <p className="p-6 text-hanok-bright">불러오는 중…</p>
       </main>
@@ -26,7 +26,7 @@ export function PostDetailClient({ id }: { id: string }) {
 
   if (!post) {
     return (
-      <main className="min-h-dvh">
+      <main className="min-h-full">
         <MatchingHeader backHref="/matching" title="게시글" showBell={false} />
         <div className="p-6">
           <p className="font-[family-name:var(--font-display)] text-xl font-bold text-ink">
@@ -48,7 +48,7 @@ export function PostDetailClient({ id }: { id: string }) {
 
   return (
     <main
-      className={`relative flex min-h-dvh flex-col ${canStartChat || isAuthor ? "pb-28" : "pb-10"}`}
+      className={`relative flex min-h-full flex-col ${canStartChat || isAuthor ? "pb-28" : "pb-10"}`}
     >
       <MatchingHeader backHref="/matching" title="게시글" showBell={false} />
 

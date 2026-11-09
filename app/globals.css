@@ -210,26 +210,25 @@ body {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  --app-max-width: 430px;
-  min-height: 100dvh;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(194, 163, 132, 0.28), transparent 42%),
-    radial-gradient(circle at 88% 0%, rgba(173, 134, 95, 0.18), transparent 36%),
-    linear-gradient(180deg, var(--hanji-warm) 0%, var(--hanji-main) 48%, #f7ecd7 100%);
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(253, 245, 229, 0.96), rgba(250, 241, 223, 0.98));
 }
 
 .matching-root .app-shell {
-  --app-width: min(100%, var(--app-max-width));
   position: relative;
   z-index: 1;
-  width: var(--app-width);
-  max-width: var(--app-max-width);
-  min-height: 100dvh;
-  margin: 0 auto;
   display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   overflow-x: hidden;
-  background: linear-gradient(180deg, rgba(253, 245, 229, 0.96), rgba(250, 241, 223, 0.98));
+  overflow-y: auto;
   padding-top: var(--safe-top);
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
@@ -241,27 +240,6 @@ body {
   right: 1.25rem;
   bottom: calc(1.5rem + var(--safe-bottom));
   z-index: 30;
-}
-
-@media (min-width: 512px) {
-  .matching-root {
-    display: grid;
-    place-items: center;
-    padding: 16px;
-  }
-
-  .matching-root .app-shell {
-    width: 390px;
-    max-width: 390px;
-    height: min(844px, calc(100dvh - 32px));
-    min-height: min(844px, calc(100dvh - 32px));
-    border-radius: 28px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    box-shadow:
-      0 0 0 1px rgba(129, 85, 48, 0.1),
-      0 24px 60px rgba(82, 36, 14, 0.18);
-  }
 }
 
 .wood-bar {

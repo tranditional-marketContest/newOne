@@ -47,7 +47,7 @@ export default function MyMatchingPage() {
   };
 
   return (
-    <main className="relative flex min-h-dvh flex-col pb-10">
+    <main className="relative flex min-h-full flex-col pb-10">
       <MatchingHeader
         title="나의 반띵"
         backHref="/matching"

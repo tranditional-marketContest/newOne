@@ -54,7 +54,7 @@ export function ChatRoomClient({ id }: { id: string }) {
 
   if (!ready) {
     return (
-      <main className="min-h-dvh">
+      <main className="min-h-full">
         <MatchingHeader backHref="/matching" title="1대1 채팅" showBell={false} />
         <p className="p-6 text-hanok-bright">채팅방을 여는 중…</p>
       </main>
@@ -63,7 +63,7 @@ export function ChatRoomClient({ id }: { id: string }) {
 
   if (!post) {
     return (
-      <main className="min-h-dvh">
+      <main className="min-h-full">
         <MatchingHeader backHref="/matching" title="1대1 채팅" showBell={false} />
         <div className="p-6">
           <p className="font-bold text-ink">채팅할 글을 찾을 수 없어요</p>
@@ -78,7 +78,7 @@ export function ChatRoomClient({ id }: { id: string }) {
   // Author cannot start a chat alone — only reply after someone contacted them.
   if (isAuthor && !incoming && post.status === "open") {
     return (
-      <main className="min-h-dvh">
+      <main className="min-h-full">
         <MatchingHeader
           backHref="/matching/mine"
           title="1대1 채팅"
@@ -127,7 +127,7 @@ export function ChatRoomClient({ id }: { id: string }) {
     : post.authorName;
 
   return (
-    <main className="relative flex min-h-dvh flex-col">
+    <main className="relative flex min-h-full flex-col">
       <MatchingHeader
         backHref={isAuthor ? "/matching/mine" : `/matching/${post.id}`}
         title="1대1 채팅"
