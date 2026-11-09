@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import Link from "next/link";
 import {
   buildGeneratedCourse,
   buildQuickCourse,
@@ -349,7 +350,15 @@ export function CourseApp() {
           </button>
         </div>
 
-        {phase !== "home" ? (
+        {phase === "home" ? (
+          <Link
+            href="/"
+            aria-label="메인으로"
+            className="absolute top-3 left-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl shadow"
+          >
+            ←
+          </Link>
+        ) : (
           <button
             type="button"
             onClick={goHome}
@@ -358,7 +367,7 @@ export function CourseApp() {
           >
             ←
           </button>
-        ) : null}
+        )}
       </div>
 
       <aside className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-y-auto">
