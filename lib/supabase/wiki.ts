@@ -137,6 +137,70 @@ export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
   }));
 }
 
+export async function syncStoresToSupabase(stores: Store[]): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || stores.length === 0) return false;
+
+  const payload = stores.map((store) => ({
+    id: store.id,
+    name: store.name,
+    category: store.category,
+    hours: store.hours,
+    items: store.items,
+    character: store.character,
+    discount: store.discount,
+    note: store.note,
+    photos: store.photos,
+    updated_at: store.updatedAt || null,
+  }));
+
+  const { error } = await supabase.from("stores").upsert(payload, { onConflict: "id" });
+  if (error) {
+    console.error(error);
+    return false;
+  }
+
+  for (const store of stores) {
+    const reviewCount = store.reviews?.length ?? 0;
+    const priceRows = (store.menus ?? []).flatMap((menu) =>
+      menu.prices.map((point) => ({
+        store_id: store.id,
+        menu_name: menu.name,
+        amount: point.amount,
+        grams: point.grams ?? null,
+        source: point.source ?? null,
+        visited_date: point.date,
+      })),
+    );
+    if (reviewCount === 0 && priceRows.length === 0) continue;
+
+    const { count } = await supabase
+      .from("reviews")
+      .select("*", { count: "exact", head: true })
+      .eq("store_id", store.id);
+    if ((count ?? 0) > 0) continue;
+
+    if (reviewCount > 0) {
+      const { error: reviewError } = await supabase.from("reviews").insert(
+        store.reviews.map((review) => ({
+          store_id: store.id,
+          text: review.text,
+          visited_date: review.date,
+          purchase_hour: review.purchaseHour ?? null,
+          purchased_items: review.purchasedItems ?? null,
+        })),
+      );
+      if (reviewError) console.error(reviewError);
+    }
+    if (priceRows.length > 0) {
+      const { error: priceError } = await supabase.from("menu_prices").insert(priceRows);
+      if (priceError) console.error(priceError);
+    }
+  }
+
+  return true;
+}
+
 export async function seedStoresToSupabase(stores: Store[]): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;

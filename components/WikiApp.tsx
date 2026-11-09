@@ -6,7 +6,7 @@ import { applyDraft } from "@/lib/apply";
 import { coerceOrganized } from "@/lib/organize";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase } from "@/lib/supabase/wiki";
+import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase, syncStoresToSupabase } from "@/lib/supabase/wiki";
 import type { EditorDraft, OrganizedWiki, Store } from "@/lib/types";
 import { BackIcon } from "./icons";
 import StoreDetail from "./StoreDetail";
@@ -16,6 +16,21 @@ import StoreList from "./StoreList";
 type Panel = "detail" | "edit";
 
 const firstStoreId = [...seedStores].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? null;
+
+function readStoredWikiStores(): Store[] {
+  const raw = localStorage.getItem(STORE_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as Store[]).map((store) => ({
+      ...store,
+      reviews: Array.isArray(store.reviews) ? store.reviews : [],
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export default function WikiApp() {
   const [stores, setStores] = useState<Store[]>(seedStores);
@@ -44,7 +59,8 @@ export default function WikiApp() {
           return;
         }
 
-        await seedStoresToSupabase(seedStores);
+        const localStores = readStoredWikiStores();
+        await seedStoresToSupabase(localStores.length > 0 ? localStores : seedStores);
         const seeded = await fetchStoresFromSupabase();
         if (cancelled) return;
         if (seeded && seeded.length > 0) {
@@ -83,8 +99,10 @@ export default function WikiApp() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || isSupabaseConfigured()) return;
+    if (!hydrated) return;
     localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(stores));
+    if (!isSupabaseConfigured()) return;
+    void syncStoresToSupabase(stores);
   }, [hydrated, stores]);
 
   const visibleStores = useMemo(() => {

@@ -3,31 +3,61 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { categoryFilters, findStore, type Store } from "@/data/market";
+import { BlockMarketMap } from "@/components/block-market-map";
 import { UserIcon } from "@/components/icons";
-import { MarketMap } from "@/components/market-map";
 import { RadialMenu } from "@/components/radial-menu";
 import { EventSheet, StoreDetail } from "@/components/sheets";
 import type { EventBanner } from "@/lib/event-banner";
+import { loadStoresForMap } from "@/lib/market-stores";
+import { getSupabase } from "@/lib/supabase/client";
 
 const NAME_KEY = "sinwon-visitor";
 
 export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: Store[] }) {
-  const categories = categoryFilters(stores);
   const [category, setCategory] = useState("전체");
   const [briefId, setBriefId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [eventOpen, setEventOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [liveStores, setLiveStores] = useState(stores);
+  const categories = categoryFilters(liveStores);
+
+  useEffect(() => {
+    setLiveStores(stores);
+  }, [stores]);
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(NAME_KEY);
     if (saved) setUserName(saved);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refresh() {
+      const next = await loadStoresForMap();
+      if (!cancelled && next.length > 0) setLiveStores(next);
+    }
+
+    void refresh();
+    const supabase = getSupabase();
+    const channel = supabase
+      ?.channel("home-store-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "stores" }, () => {
+        void refresh();
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (channel) void supabase?.removeChannel(channel);
+    };
+  }, []);
+
   function selectCategory(next: string) {
     setCategory(next);
-    setBriefId((id) => (kept(stores, id, next) ? id : null));
-    setDetailId((id) => (kept(stores, id, next) ? id : null));
+    setBriefId((id) => (kept(liveStores, id, next) ? id : null));
+    setDetailId((id) => (kept(liveStores, id, next) ? id : null));
   }
 
   function openDetail(id: string) {
@@ -36,8 +66,8 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
     setEventOpen(false);
   }
 
-  const brief = briefId ? findStore(stores, briefId) : null;
-  const detail = detailId ? findStore(stores, detailId) : null;
+  const brief = briefId ? findStore(liveStores, briefId) : null;
+  const detail = detailId ? findStore(liveStores, detailId) : null;
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -115,8 +145,8 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
       </p>
 
       <main className="relative z-0 min-h-0 flex-1">
-        <MarketMap
-          stores={stores}
+        <BlockMarketMap
+          stores={liveStores}
           categories={categories}
           category={category}
           onCategory={selectCategory}

@@ -1,5 +1,6 @@
 import "server-only";
-import { placeStores, type StoreRow } from "@/data/market";
+import type { StoreRow } from "@/data/market";
+import { placeOnBlockMap, seedStoresOnMap } from "@/lib/market-stores";
 import { getSupabase } from "@/lib/supabase/client";
 
 type StoreRecord = {
@@ -17,8 +18,8 @@ type StoreRecord = {
 export async function getStores() {
   const supabase = getSupabase();
   if (!supabase) {
-    console.warn("Supabase 환경 변수가 없어 빈 가게 목록을 씁니다.");
-    return placeStores([]);
+    console.warn("Supabase 환경 변수가 없어 신원위키 가게를 씁니다.");
+    return seedStoresOnMap();
   }
 
   try {
@@ -27,16 +28,16 @@ export async function getStores() {
       .select("id,name,category,hours,items,character,discount,note,photos")
       .order("name", { ascending: true });
 
-    if (error) {
-      console.warn("Supabase stores 조회 실패:", error.message);
-      return placeStores([]);
+    if (error || !data || data.length === 0) {
+      console.warn("Supabase stores 조회 실패:", error?.message ?? "등록된 가게 없음");
+      return seedStoresOnMap();
     }
 
-    const rows = ((data ?? []) as StoreRecord[]).map(toRow);
-    return placeStores(rows);
+    const rows = (data as StoreRecord[]).map(toRow);
+    return placeOnBlockMap(rows);
   } catch (err) {
     console.warn("Supabase stores 요청 실패:", err);
-    return placeStores([]);
+    return seedStoresOnMap();
   }
 }
 

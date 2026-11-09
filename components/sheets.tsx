@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Store } from "@/data/market";
 import { CloseIcon } from "@/components/icons";
 import type { EventBanner } from "@/lib/event-banner";
+import { menusForMarketStore } from "@/lib/market-stores";
+import MenuBoard from "@/components/MenuBoard";
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -24,6 +26,7 @@ function menuItems(raw: string) {
 
 export function StoreDetail({ store, onClose }: { store: Store; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const menus = menusForMarketStore(store);
   const menu = menuItems(store.items);
   useEscape(onClose);
 
@@ -58,7 +61,11 @@ export function StoreDetail({ store, onClose }: { store: Store; onClose: () => v
         </div>
 
         <h3 className="mt-5 text-xs font-semibold tracking-wide text-[#8a7b6c]">메뉴</h3>
-        {menu.length ? (
+        {menus.length ? (
+          <div className="mt-2">
+            <MenuBoard menus={menus} compact />
+          </div>
+        ) : menu.length ? (
           <ul className="mt-2 space-y-2">
             {menu.map((item) => (
               <li
