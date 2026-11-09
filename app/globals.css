@@ -168,11 +168,11 @@ body {
 }
 
 .ticket-notch-top {
-  top: -9px;
+  top: 12px;
 }
 
 .ticket-notch-bottom {
-  bottom: -9px;
+  bottom: 12px;
 }
 
 @keyframes voucher-enter {

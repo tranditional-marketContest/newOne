@@ -12,7 +12,7 @@ export function PhoneShell({ children, className = "" }: PhoneShellProps) {
     <AppFrame>
       <main className="flex h-full min-h-0 w-full flex-1 flex-col bg-[#f7f3ea] text-[#1c1915]">
         <section
-          className={`mx-auto flex h-full min-h-0 w-full flex-col overflow-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] ${className}`}
+          className={`mx-auto flex h-full min-h-0 w-full flex-col overflow-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] [&>*]:shrink-0 ${className}`}
         >
           {children}
         </section>
