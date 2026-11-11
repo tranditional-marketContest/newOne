@@ -1,13 +1,9 @@
-import { boardMenus, isPer100g, menuBaseName } from "@/lib/menu-board";
+import { boardMenus, formatUnitPrice, withMenuUnit } from "@/lib/menu-board";
 import { formatWon, outlierLimits, priceWindow } from "@/lib/price";
 import type { PricePoint, PriceSource, Store } from "@/lib/types";
 
-function menuLabel(name: string): string {
-  return isPer100g(name) ? menuBaseName(name) : name;
-}
-
-function priceText(name: string, amount: number): string {
-  return `${menuLabel(name)} · 100g당 ${formatWon(amount)}`;
+function priceText(name: string, amount: number, unit: ReturnType<typeof withMenuUnit>): string {
+  return `${name} · ${formatUnitPrice(amount, unit, formatWon)}`;
 }
 
 export default function WikiTable({
@@ -59,8 +55,9 @@ export default function WikiTable({
     );
   }
 
-  const rows: { key: string; menuName: string; point: PricePoint }[] = boardMenus(store.menus).flatMap(
-    (menu) =>
+  const board = boardMenus(store.menus);
+  const rows: { key: string; menuName: string; unit: ReturnType<typeof withMenuUnit>; point: PricePoint }[] =
+    board.flatMap((menu) =>
       priceWindow(menu.prices)
         .filter((point) => point.source === "fields")
         .slice()
@@ -68,13 +65,14 @@ export default function WikiTable({
         .map((point, index) => ({
           key: `${menu.id}-${point.date}-${point.amount}-fields-${index}`,
           menuName: menu.name,
+          unit: withMenuUnit(menu),
           point,
         })),
-  );
+    );
 
   const amountsByMenu = new Map(
-    boardMenus(store.menus).map((menu) => [
-      menu.name,
+    board.map((menu) => [
+      menu.id,
       priceWindow(menu.prices)
         .filter((point) => point.source === "fields")
         .map((point) => point.amount),
@@ -100,7 +98,8 @@ export default function WikiTable({
             </tr>
           ) : (
             rows.map((row, index) => {
-              const amounts = amountsByMenu.get(row.menuName) ?? [];
+              const menu = board.find((item) => item.name === row.menuName && withMenuUnit(item) === row.unit);
+              const amounts = menu ? amountsByMenu.get(menu.id) ?? [] : [];
               const limits = outlierLimits(amounts);
               const outlier = limits
                 ? row.point.amount < limits.low || row.point.amount > limits.high
@@ -111,7 +110,7 @@ export default function WikiTable({
                   <td className="px-3 py-2 text-stone-500">{index + 1}</td>
                   <td className="px-3 py-2">{store.category}</td>
                   <td className="px-3 py-2">
-                    <p className="font-medium">{priceText(row.menuName, row.point.amount)}</p>
+                    <p className="font-medium">{priceText(row.menuName, row.point.amount, row.unit)}</p>
                     {outlier ? (
                       <span className="mt-0.5 inline-block text-xs font-semibold text-[#c4492c]">
                         이상치 · 평균에서 제외

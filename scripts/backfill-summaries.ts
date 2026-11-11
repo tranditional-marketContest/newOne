@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { organizeLocally } from "../lib/organize";
+import { coerceOrganized, organizeLocally } from "../lib/organize";
 import type { WikiCategory } from "../lib/types";
 import { WIKI_CATEGORIES } from "../lib/types";
+import { inferUnitFromContext, isPriceUnit, normalizeMenuName } from "../lib/units";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -41,7 +42,8 @@ async function organizeWithGemini(
 - 글에 없는 내용은 만들지 않는다.
 - 메뉴 이름이 모호하면(고기, 과일 등) menus/items에 넣지 않는다.
 - JSON만 반환. 키: category, hours, items, character, discount, note, menus
-- menus 항목은 name, price
+- menus 항목은 name, price, unit (unit: per_100g | per_piece | per_pack | each)
+- 한알/개면 per_piece, 100g면 per_100g. name에 단위 접미사 붙이지 말 것
 후기:
 ${text}`;
 
@@ -75,17 +77,24 @@ ${text}`;
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const categoryValue =
         WIKI_CATEGORIES.find((item) => item === parsed.category) ?? category;
+      const coerced = coerceOrganized(parsed, categoryValue);
+      if (coerced) return coerced;
       const menus = Array.isArray(parsed.menus)
         ? parsed.menus
             .map((menu) => {
               if (!menu || typeof menu !== "object") return null;
-              const row = menu as { name?: unknown; price?: unknown };
-              const name = typeof row.name === "string" ? row.name.trim() : "";
+              const row = menu as { name?: unknown; price?: unknown; unit?: unknown };
+              const rawName = typeof row.name === "string" ? row.name.trim() : "";
+              const name = normalizeMenuName(rawName) || rawName;
               const price = typeof row.price === "number" ? row.price : Number(row.price);
               if (!name || !Number.isFinite(price) || price <= 0) return null;
-              return { name, price: Math.round(price) };
+              const unit = isPriceUnit(row.unit) ? row.unit : inferUnitFromContext(rawName, rawName);
+              return { name, price: Math.round(price), unit };
             })
-            .filter((menu): menu is { name: string; price: number } => menu !== null)
+            .filter(
+              (menu): menu is { name: string; price: number; unit: "per_100g" | "per_piece" | "per_pack" | "each" } =>
+                menu !== null,
+            )
         : [];
       const textOf = (key: string) =>
         typeof parsed[key] === "string" ? String(parsed[key]).trim() : "";
@@ -148,7 +157,7 @@ async function main() {
             character: "",
             discount: "",
             note: "",
-            menus: [] as { name: string; price: number }[],
+            menus: [],
           };
 
     if (!organized.character && text) {

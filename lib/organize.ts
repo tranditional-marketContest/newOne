@@ -1,4 +1,5 @@
-import { WIKI_CATEGORIES, type OrganizedWiki, type WikiCategory } from "./types";
+import { WIKI_CATEGORIES, type OrganizedWiki, type PriceUnit, type WikiCategory } from "./types";
+import { inferUnitFromContext, isPriceUnit, normalizeMenuName } from "./units";
 
 const CATEGORY_HINTS: { pattern: RegExp; category: WikiCategory }[] = [
   { pattern: /순대국|족발|전집|식당|백반|국밥|분식집/, category: "식당" },
@@ -25,26 +26,26 @@ function parseAmount(raw: string): number | null {
 }
 
 function cleanMenuName(word: string): string {
-  return word.replace(/(?:으로|에서|부터|까지|은|는|이|가|을|를|와|과|도|에)$/u, "");
+  return word
+    .replace(/(?:으로|에서|부터|까지|은|는|이|가|을|를|와|과|도|에)$/u, "")
+    .replace(/\s*100\s*g$/i, "")
+    .replace(/(?:한알|개당|팩|봉지)$/u, "")
+    .trim();
 }
 
 /** 부위·품목이 불명확한 이름은 가격 평균에 넣지 않는다. */
 export function isVagueMenuName(name: string): boolean {
-  const base = name
-    .trim()
-    .replace(/\s*100\s*g$/i, "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
+  const base = normalizeMenuName(name).replace(/\s+/g, "").toLowerCase();
   if (!base) return true;
   return /^(오늘|어제|정말|진짜|아주|매우|가격|메뉴|고기|육류|고기류|생선|해산물|과일|야채|채소|반찬|떡|간식|음식|먹거리|그것|이거|저거)$/.test(
     base,
   );
 }
 
-export function menusFromText(text: string): { name: string; price: number }[] {
+export function menusFromText(text: string): { name: string; price: number; unit: PriceUnit }[] {
   const pattern =
     /(\d+\s*만\s*\d*\s*천?\s*원|\d+\s*천\s*원|\d{1,3}(?:,\d{3})+\s*원|\d+\s*원)/g;
-  const found: { name: string; price: number }[] = [];
+  const found: { name: string; price: number; unit: PriceUnit }[] = [];
   const seen = new Set<string>();
 
   for (const match of text.matchAll(pattern)) {
@@ -52,15 +53,17 @@ export function menusFromText(text: string): { name: string; price: number }[] {
     const index = match.index ?? 0;
     if (!price || price < 100 || price > 500000) continue;
     const before = text.slice(Math.max(0, index - 30), index);
+    const around = text.slice(Math.max(0, index - 30), Math.min(text.length, index + match[0].length + 12));
     const words = before.match(/[가-힣A-Za-z0-9]{2,}/g) ?? [];
     const rawName = [...words].reverse().find((word) => /[가-힣]/.test(word));
     if (!rawName) continue;
     const name = cleanMenuName(rawName);
     if (name.length < 1 || isVagueMenuName(name)) continue;
-    const key = `${name}-${price}`;
+    const unit = inferUnitFromContext(around, rawName);
+    const key = `${name}-${unit}-${price}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    found.push({ name, price });
+    found.push({ name, price, unit });
   }
 
   return found.slice(0, 8);
@@ -131,12 +134,14 @@ export function coerceOrganized(
         .map((menu) => {
           if (!menu || typeof menu !== "object") return null;
           const row = menu as Record<string, unknown>;
-          const name = typeof row.name === "string" ? row.name.trim() : "";
+          const rawName = typeof row.name === "string" ? row.name.trim() : "";
+          const name = normalizeMenuName(rawName) || rawName;
           const price = typeof row.price === "number" ? row.price : Number(row.price);
           if (!name || isVagueMenuName(name) || !Number.isFinite(price) || price <= 0) return null;
-          return { name, price: Math.round(price) };
+          const unit = isPriceUnit(row.unit) ? row.unit : inferUnitFromContext(rawName, rawName);
+          return { name, price: Math.round(price), unit };
         })
-        .filter((menu): menu is { name: string; price: number } => menu !== null)
+        .filter((menu): menu is { name: string; price: number; unit: PriceUnit } => menu !== null)
         .slice(0, 8)
     : [];
 

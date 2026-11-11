@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { applyDraft } from "@/lib/apply";
+import { withMenuUnit } from "@/lib/menu-board";
 import { coerceOrganized } from "@/lib/organize";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase, syncStoresToSupabase } from "@/lib/supabase/wiki";
 import type { EditorDraft, OrganizedWiki, Store } from "@/lib/types";
+import { normalizeMenuName } from "@/lib/units";
 import { BackIcon } from "./icons";
 import StoreDetail from "./StoreDetail";
 import StoreEditor from "./StoreEditor";
@@ -17,16 +19,28 @@ type Panel = "detail" | "edit";
 
 const firstStoreId = [...seedStores].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? null;
 
+function normalizeStore(store: Store): Store {
+  return {
+    ...store,
+    reviews: Array.isArray(store.reviews) ? store.reviews : [],
+    menus: Array.isArray(store.menus)
+      ? store.menus.map((menu) => ({
+          ...menu,
+          name: normalizeMenuName(menu.name) || menu.name,
+          unit: withMenuUnit(menu),
+          prices: Array.isArray(menu.prices) ? menu.prices : [],
+        }))
+      : [],
+  };
+}
+
 function readStoredWikiStores(): Store[] {
   const raw = localStorage.getItem(STORE_STORAGE_KEY);
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return (parsed as Store[]).map((store) => ({
-      ...store,
-      reviews: Array.isArray(store.reviews) ? store.reviews : [],
-    }));
+    return (parsed as Store[]).map(normalizeStore);
   } catch {
     return [];
   }
@@ -79,10 +93,7 @@ export default function WikiApp() {
           const parsed: unknown = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setStores(
-              (parsed as Store[]).map((store) => ({
-                ...store,
-                reviews: Array.isArray(store.reviews) ? store.reviews : [],
-              })),
+              (parsed as Store[]).map(normalizeStore),
             );
           }
         } catch {
@@ -154,7 +165,7 @@ export default function WikiApp() {
     if (!selected || organizing) return;
     const text = draft.text.trim();
     let organized: OrganizedWiki | null = null;
-    let nextNotice = "수정한 내용을 위키에 반영했습니다.";
+    let nextNotice: string | null = null;
     const started = Date.now();
     const needsAi = Boolean(text);
 
@@ -175,7 +186,6 @@ export default function WikiApp() {
         if (!response.ok) throw new Error(payload.error || "정리에 실패했습니다.");
         organized = coerceOrganized(payload.result, draft.category);
         if (!organized) throw new Error("정리 결과를 읽지 못했습니다.");
-        nextNotice = payload.notice?.trim() ?? "";
       } catch (error) {
         nextNotice = error instanceof Error ? error.message : "정리에 실패했습니다.";
         organized = null;
@@ -196,7 +206,6 @@ export default function WikiApp() {
       try {
         const summary = await summarizeCharacter(nextStore);
         nextStore = { ...nextStore, character: summary.character };
-        if (summary.notice) nextNotice = summary.notice;
       } catch {
         // 성격 요약 실패 시 기존·organize 결과 유지
       }
@@ -218,7 +227,7 @@ export default function WikiApp() {
           const wait = 900 - (Date.now() - started);
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
           setOrganizing(false);
-          setNotice(nextNotice || "위키와 Supabase에 저장했습니다.");
+          setNotice(null);
           setPanel("detail");
           return;
         }

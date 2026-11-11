@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { applyDraft } from "@/lib/apply";
-import { boardMenus, isPer100g, menuBaseName } from "@/lib/menu-board";
+import { boardMenus, withMenuUnit } from "@/lib/menu-board";
 import { seoulToday, summarizePrices } from "@/lib/price";
 import type { EditorDraft, Store } from "@/lib/types";
+import { inferUnitFromName } from "@/lib/units";
 import WikiTable from "./WikiTable";
 
 type StoreEditorProps = {
@@ -17,15 +18,10 @@ type StoreEditorProps = {
 const fieldClass =
   "w-full rounded-lg border border-[#e4d8c6] bg-white px-3 py-2 text-sm outline-none focus:border-[#1f7a45]";
 
-function menuLabel(name: string): string {
-  if (isPer100g(name)) return `${menuBaseName(name)} · 100g당`;
-  return name;
-}
-
 const CUSTOM_MENU = "__custom__";
 
 function emptyMenuRow(custom = false): EditorDraft["menus"][number] {
-  return { key: crypto.randomUUID(), name: "", grams: "100", price: "", custom };
+  return { key: crypto.randomUUID(), name: "", unit: "each", price: "", custom };
 }
 
 function createDraft(store: Store): EditorDraft {
@@ -212,31 +208,32 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
         {mode === "fields" ? (
         <>
         <section className="space-y-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_72px_112px_36px] gap-2 text-xs font-bold text-stone-500">
+          <div className="grid grid-cols-[minmax(0,1fr)_112px_36px] gap-2 text-xs font-bold text-stone-500">
             <span>메뉴</span>
-            <span>그람수</span>
-            <span>총 가격</span>
+            <span>가격</span>
             <span className="sr-only">행</span>
           </div>
           {draft.menus.map((menu, index) => {
-            const current = store.menus.find((item) => item.name === menu.name || item.id === menu.key);
+            const current = store.menus.find(
+              (item) =>
+                (item.name === menu.name && withMenuUnit(item) === menu.unit) || item.id === menu.key,
+            );
             const average = current ? summarizePrices(current.prices).average : null;
             const isCustom = Boolean(menu.custom);
-            const grams = Math.max(1, Math.round(Number(menu.grams) || 100));
-            const total = Number(menu.price.replace(/,/g, ""));
-            const unitPreview =
-              Number.isFinite(total) && total > 0 ? Math.round((total / grams) * 100) : average;
             return (
               <div key={menu.key} className="space-y-1">
-                <div className="grid grid-cols-[minmax(0,1fr)_72px_112px_36px] gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_112px_36px] gap-2">
                   {isCustom ? (
                     <input
                       value={menu.name}
                       aria-label={`새 메뉴 ${index + 1}`}
                       placeholder="메뉴 이름"
                       onChange={(event) => {
+                        const name = event.target.value;
                         const menus = draft.menus.map((item) =>
-                          item.key === menu.key ? { ...item, name: event.target.value, custom: true } : item,
+                          item.key === menu.key
+                            ? { ...item, name, unit: inferUnitFromName(name), custom: true }
+                            : item,
                         );
                         patch({ menus });
                       }}
@@ -254,7 +251,7 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
                               ? {
                                   ...item,
                                   name: "",
-                                  grams: item.grams || "100",
+                                  unit: "each" as const,
                                   price: item.price,
                                   custom: true,
                                   key: crypto.randomUUID(),
@@ -270,6 +267,7 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
                             ? {
                                 ...item,
                                 name: value,
+                                unit: selected ? withMenuUnit(selected) : inferUnitFromName(value),
                                 custom: false,
                                 key: selected?.id ?? item.key,
                               }
@@ -282,7 +280,7 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
                       <option value="">메뉴 선택</option>
                       {optionsForRow(menu.name).map((option) => (
                         <option key={option.id} value={option.name}>
-                          {menuLabel(option.name)}
+                          {option.name}
                         </option>
                       ))}
                       <option value={CUSTOM_MENU}>새 메뉴 추가</option>
@@ -290,21 +288,8 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
                   )}
                   <input
                     inputMode="numeric"
-                    value={menu.grams}
-                    aria-label={`${menu.name || "메뉴"} 그람수`}
-                    placeholder="100"
-                    onChange={(event) => {
-                      const menus = draft.menus.map((item) =>
-                        item.key === menu.key ? { ...item, grams: event.target.value } : item,
-                      );
-                      patch({ menus });
-                    }}
-                    className={fieldClass}
-                  />
-                  <input
-                    inputMode="numeric"
                     value={menu.price}
-                    aria-label={`${menu.name || "메뉴"} 총 가격`}
+                    aria-label={`${menu.name || "메뉴"} 가격`}
                     placeholder={average ? String(average) : "0"}
                     onChange={(event) => {
                       const menus = draft.menus.map((item) =>
@@ -326,11 +311,6 @@ export default function StoreEditor({ store, busy, onCancel, onSubmit }: StoreEd
                     ×
                   </button>
                 </div>
-                {unitPreview ? (
-                  <p className="text-xs text-stone-500">
-                    100g당 약 {unitPreview.toLocaleString("ko-KR")}원
-                  </p>
-                ) : null}
                 {isCustom ? (
                   <button
                     type="button"

@@ -11,7 +11,7 @@ function prices(amounts: number[], days: number[], sources?: PriceSource[]): Men
 }
 
 function menu(id: string, name: string, amounts: number[], days: number[], sources?: PriceSource[]): MenuItem {
-  return { id, name, prices: prices(amounts, days, sources) };
+  return { id, name, unit: "per_100g", prices: prices(amounts, days, sources) };
 }
 
 /** 리뷰가 없는 가게는 이름·카테고리만 둔다. */
@@ -74,21 +74,21 @@ export const seedStores: Store[] = [
     menus: [
       menu(
         "gun-1",
-        "삼겹살 100g",
+        "삼겹살",
         [2800, 2900, 3000, 2850, 25000, 2750, 2800, 2950, 3000, 22000],
         [1, 3, 5, 7, 9, 2, 4, 6, 8, 10],
         ["prose", "prose", "prose", "prose", "prose", "fields", "fields", "fields", "fields", "fields"],
       ),
       menu(
         "gun-2",
-        "목살 100g",
+        "목살",
         [2600, 2700, 2650, 2800, 18000, 2550, 2700, 2600, 2750, 19000],
         [1, 4, 6, 8, 11, 2, 5, 7, 9, 12],
         ["prose", "prose", "prose", "prose", "prose", "fields", "fields", "fields", "fields", "fields"],
       ),
       menu(
         "gun-3",
-        "불고기용 100g",
+        "불고기용",
         [2400, 2500, 2360, 2600, 19800, 2440, 2560, 2400, 2520, 17600],
         [2, 5, 8, 11, 13, 3, 6, 9, 12, 14],
         ["prose", "prose", "prose", "prose", "prose", "fields", "fields", "fields", "fields", "fields"],

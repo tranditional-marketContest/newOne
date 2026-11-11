@@ -9,19 +9,24 @@ export const WIKI_CATEGORIES = [
 
 export type WikiCategory = (typeof WIKI_CATEGORIES)[number];
 
+export const PRICE_UNITS = ["per_100g", "per_piece", "per_pack", "each"] as const;
+
+export type PriceUnit = (typeof PRICE_UNITS)[number];
+
 export type PriceSource = "prose" | "fields";
 
 export type PricePoint = {
   amount: number;
   date: string;
   source?: PriceSource;
-  /** 직접입력 시 구매 그람수. amount는 100g당 환산가. */
+  /** 직접입력 시 구매 그람수. per_100g일 때 amount는 100g당 환산가. */
   grams?: number;
 };
 
 export type MenuItem = {
   id: string;
   name: string;
+  unit: PriceUnit;
   prices: PricePoint[];
 };
 
@@ -55,13 +60,13 @@ export type OrganizedWiki = {
   character: string;
   discount: string;
   note: string;
-  menus: { name: string; price: number }[];
+  menus: { name: string; price: number; unit: PriceUnit }[];
 };
 
 export type MenuDraft = {
   key: string;
   name: string;
-  grams: string;
+  unit: PriceUnit;
   price: string;
   custom?: boolean;
 };

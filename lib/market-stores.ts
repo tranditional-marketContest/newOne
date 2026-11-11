@@ -2,6 +2,7 @@ import { shops } from "@/lib/course";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
 import { getSupabase } from "@/lib/supabase/client";
 import type { MenuItem, Store as WikiStore } from "@/lib/types";
+import { inferUnitFromName, isPriceUnit, menuIdentityKey, normalizeMenuName } from "@/lib/units";
 import type { Store, StoreRow } from "@/data/market";
 
 const knownPoints = new Map(
@@ -70,13 +71,27 @@ export function menusForMarketStore(store: { id: string; name: string }): MenuIt
   return matches.find((item) => (item.menus?.length ?? 0) > 0)?.menus ?? matches[0]?.menus ?? [];
 }
 
-function rememberMenus(rows: { store_id: string; menu_name: string; amount: number; grams: number | null; source: "prose" | "fields" | null; visited_date: string }[]) {
+function rememberMenus(
+  rows: {
+    store_id: string;
+    menu_name: string;
+    amount: number;
+    grams: number | null;
+    source: "prose" | "fields" | null;
+    visited_date: string;
+    unit?: string | null;
+  }[],
+) {
   const grouped = new Map<string, Map<string, MenuItem>>();
   for (const row of rows) {
-    const byName = grouped.get(row.store_id) ?? new Map<string, MenuItem>();
-    const current = byName.get(row.menu_name) ?? {
-      id: `${row.store_id}-${row.menu_name}`,
-      name: row.menu_name,
+    const byKey = grouped.get(row.store_id) ?? new Map<string, MenuItem>();
+    const name = normalizeMenuName(row.menu_name) || row.menu_name;
+    const unit = isPriceUnit(row.unit) ? row.unit : inferUnitFromName(row.menu_name);
+    const key = menuIdentityKey(name, unit);
+    const current = byKey.get(key) ?? {
+      id: `${row.store_id}-${key}`,
+      name,
+      unit,
       prices: [],
     };
     current.prices.push({
@@ -85,11 +100,11 @@ function rememberMenus(rows: { store_id: string; menu_name: string; amount: numb
       ...(row.source ? { source: row.source } : {}),
       ...(row.grams && row.grams !== 100 ? { grams: row.grams } : {}),
     });
-    byName.set(row.menu_name, current);
-    grouped.set(row.store_id, byName);
+    byKey.set(key, current);
+    grouped.set(row.store_id, byKey);
   }
-  for (const [storeId, byName] of grouped) {
-    menusByStoreId.set(storeId, [...byName.values()]);
+  for (const [storeId, byKey] of grouped) {
+    menusByStoreId.set(storeId, [...byKey.values()]);
   }
 }
 
@@ -129,7 +144,7 @@ export async function loadStoresForMap(): Promise<Store[]> {
       if (!error && data && data.length > 0) {
         const prices = await supabase
           .from("menu_prices")
-          .select("store_id,menu_name,amount,grams,source,visited_date");
+          .select("store_id,menu_name,amount,grams,source,visited_date,unit");
         if (!prices.error && prices.data) {
           rememberMenus(prices.data as {
             store_id: string;
@@ -138,6 +153,7 @@ export async function loadStoresForMap(): Promise<Store[]> {
             grams: number | null;
             source: "prose" | "fields" | null;
             visited_date: string;
+            unit?: string | null;
           }[]);
         }
         return placeOnBlockMap(

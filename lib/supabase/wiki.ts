@@ -1,14 +1,17 @@
+import { withMenuUnit } from "@/lib/menu-board";
 import { isVagueMenuName } from "@/lib/organize";
 import type {
   EditorDraft,
   MenuItem,
   OrganizedWiki,
   PriceSource,
+  PriceUnit,
   Review,
   Store,
   WikiCategory,
 } from "@/lib/types";
 import { WIKI_CATEGORIES } from "@/lib/types";
+import { isPriceUnit, menuIdentityKey, normalizeMenuName } from "@/lib/units";
 import { getSupabase } from "./client";
 
 type StoreRow = {
@@ -40,6 +43,7 @@ type PriceRow = {
   grams: number | null;
   source: PriceSource | null;
   visited_date: string;
+  unit?: string | null;
 };
 
 function asCategory(value: string): WikiCategory {
@@ -57,18 +61,9 @@ function money(value: string): number | null {
   return Math.round(amount);
 }
 
-function gramsOf(value: string): number {
-  const grams = Math.round(Number(value.replace(/,/g, "").trim()));
-  if (!Number.isFinite(grams) || grams <= 0) return 100;
-  return grams;
-}
-
-/** menu-board의 asPer100g는 이름만 다루므로 여기서 동일 규칙 사용 */
-function toPer100gName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return trimmed;
-  if (/100\s*g$/i.test(trimmed)) return trimmed;
-  return `${trimmed.replace(/\s*100\s*g$/i, "").trim()} 100g`;
+function unitFromRow(row: PriceRow): PriceUnit {
+  if (isPriceUnit(row.unit)) return row.unit;
+  return withMenuUnit({ name: row.menu_name });
 }
 
 export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
@@ -102,13 +97,16 @@ export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
 
   const menusByStore = new Map<string, Map<string, MenuItem>>();
   for (const row of (priceRows ?? []) as PriceRow[]) {
-    const byName = menusByStore.get(row.store_id) ?? new Map<string, MenuItem>();
-    const name = row.menu_name;
+    const byKey = menusByStore.get(row.store_id) ?? new Map<string, MenuItem>();
+    const name = normalizeMenuName(row.menu_name) || row.menu_name;
+    const unit = unitFromRow(row);
+    const key = menuIdentityKey(name, unit);
     const current =
-      byName.get(name) ??
+      byKey.get(key) ??
       ({
-        id: `${row.store_id}-${name}`,
+        id: `${row.store_id}-${key}`,
         name,
+        unit,
         prices: [],
       } satisfies MenuItem);
     current.prices.push({
@@ -117,8 +115,8 @@ export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
       ...(row.source ? { source: row.source } : {}),
       ...(row.grams && row.grams !== 100 ? { grams: row.grams } : {}),
     });
-    byName.set(name, current);
-    menusByStore.set(row.store_id, byName);
+    byKey.set(key, current);
+    menusByStore.set(row.store_id, byKey);
   }
 
   return (storeRows as StoreRow[]).map((row) => ({
@@ -135,6 +133,20 @@ export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
     menus: [...(menusByStore.get(row.id)?.values() ?? [])],
     updatedAt: row.updated_at ?? "",
   }));
+}
+
+function priceRowsFromStore(store: Store) {
+  return (store.menus ?? []).flatMap((menu) =>
+    menu.prices.map((point) => ({
+      store_id: store.id,
+      menu_name: normalizeMenuName(menu.name) || menu.name,
+      unit: withMenuUnit(menu),
+      amount: point.amount,
+      grams: point.grams ?? null,
+      source: point.source ?? null,
+      visited_date: point.date,
+    })),
+  );
 }
 
 export async function syncStoresToSupabase(stores: Store[]): Promise<boolean> {
@@ -162,16 +174,7 @@ export async function syncStoresToSupabase(stores: Store[]): Promise<boolean> {
 
   for (const store of stores) {
     const reviewCount = store.reviews?.length ?? 0;
-    const priceRows = (store.menus ?? []).flatMap((menu) =>
-      menu.prices.map((point) => ({
-        store_id: store.id,
-        menu_name: menu.name,
-        amount: point.amount,
-        grams: point.grams ?? null,
-        source: point.source ?? null,
-        visited_date: point.date,
-      })),
-    );
+    const priceRows = priceRowsFromStore(store);
     if (reviewCount === 0 && priceRows.length === 0) continue;
 
     const { count } = await supabase
@@ -224,7 +227,6 @@ export async function seedStoresToSupabase(stores: Store[]): Promise<boolean> {
     return false;
   }
 
-  // 시드 후기·가격 (건우축산 등) — 이미 있으면 중복 삽입 방지 위해 리뷰 0개일 때만
   for (const store of stores) {
     if (store.reviews.length === 0 && store.menus.every((menu) => menu.prices.length === 0)) continue;
 
@@ -247,16 +249,7 @@ export async function seedStoresToSupabase(stores: Store[]): Promise<boolean> {
       if (reviewError) console.error(reviewError);
     }
 
-    const priceRows = store.menus.flatMap((menu) =>
-      menu.prices.map((point) => ({
-        store_id: store.id,
-        menu_name: menu.name,
-        amount: point.amount,
-        grams: point.grams ?? null,
-        source: point.source ?? null,
-        visited_date: point.date,
-      })),
-    );
+    const priceRows = priceRowsFromStore(store);
     if (priceRows.length > 0) {
       const { error: priceError } = await supabase.from("menu_prices").insert(priceRows);
       if (priceError) console.error(priceError);
@@ -340,7 +333,8 @@ export async function persistWikiSubmission(input: {
       .filter((row) => row.name.trim() && !isVagueMenuName(row.name) && row.price > 0)
       .map((row) => ({
         store_id: store.id,
-        menu_name: toPer100gName(row.name),
+        menu_name: normalizeMenuName(row.name) || row.name.trim(),
+        unit: row.unit,
         amount: Math.round(row.price),
         grams: null,
         source: "prose" as const,
@@ -359,12 +353,12 @@ export async function persistWikiSubmission(input: {
         if (!row.name.trim() || isVagueMenuName(row.name)) return null;
         const total = money(row.price);
         if (!total) return null;
-        const grams = gramsOf(row.grams);
         return {
           store_id: store.id,
-          menu_name: toPer100gName(row.name),
-          amount: Math.max(1, Math.round((total / grams) * 100)),
-          grams: grams === 100 ? null : grams,
+          menu_name: normalizeMenuName(row.name) || row.name.trim(),
+          unit: row.unit,
+          amount: total,
+          grams: null,
           source: "fields" as const,
           visited_date: visitedDate,
           review_id: reviewId,

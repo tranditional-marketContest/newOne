@@ -1,7 +1,16 @@
-import { isPer100g, menuBaseName } from "./menu-board";
+import { withMenuUnit } from "./menu-board";
 import { isVagueMenuName } from "./organize";
 import { seoulToday } from "./price";
-import type { EditorDraft, MenuItem, OrganizedWiki, PriceSource, Review, Store } from "./types";
+import type {
+  EditorDraft,
+  MenuItem,
+  OrganizedWiki,
+  PriceSource,
+  PriceUnit,
+  Review,
+  Store,
+} from "./types";
+import { menuIdentityKey, normalizeMenuName } from "./units";
 
 function money(value: string): number | null {
   const amount = Number(value.replace(/,/g, "").trim());
@@ -33,18 +42,9 @@ function pushPrice(
   }
 }
 
-function gramsOf(value: string): number {
-  const grams = Math.round(Number(value.replace(/,/g, "").trim()));
-  if (!Number.isFinite(grams) || grams <= 0) return 100;
-  return grams;
-}
-
-/** 가격은 모두 100g당으로 맞춘다. */
-function asPer100gName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return trimmed;
-  if (isPer100g(trimmed)) return trimmed;
-  return `${menuBaseName(trimmed)} 100g`;
+function resolveUnit(row: { unit?: PriceUnit }, fallbackName: string): PriceUnit {
+  if (row.unit) return row.unit;
+  return withMenuUnit({ name: fallbackName });
 }
 
 export function applyDraft(store: Store, draft: EditorDraft, organized: OrganizedWiki | null): Store {
@@ -66,52 +66,57 @@ export function applyDraft(store: Store, draft: EditorDraft, organized: Organize
       ...(purchasedItems ? { purchasedItems } : {}),
     });
   }
+
   const menus = new Map<string, MenuItem>();
   for (const menu of store.menus) {
-    menus.set(menu.name.trim(), { ...menu, name: menu.name.trim(), prices: [...menu.prices] });
+    const name = normalizeMenuName(menu.name) || menu.name.trim();
+    const unit = withMenuUnit(menu);
+    const key = menuIdentityKey(name, unit);
+    menus.set(key, { ...menu, name, unit, prices: [...menu.prices] });
   }
 
   for (const row of draft.menus) {
     if (!row.name.trim() || isVagueMenuName(row.name)) continue;
-    const name = asPer100gName(row.name);
-    const base = menuBaseName(name);
+    const name = normalizeMenuName(row.name) || row.name.trim();
+    const unit = resolveUnit(row, row.name);
+    const key = menuIdentityKey(name, unit);
     const current =
-      menus.get(name) ??
-      [...menus.values()].find((menu) => menuBaseName(menu.name) === base) ??
+      menus.get(key) ??
       store.menus.find(
         (menu) =>
           menu.id === row.key ||
-          menu.name.trim() === name ||
-          menuBaseName(menu.name) === base,
+          menuIdentityKey(normalizeMenuName(menu.name) || menu.name, withMenuUnit(menu)) === key,
       );
     const next: MenuItem = current
-      ? { ...current, name, prices: [...current.prices] }
-      : { id: row.key, name, prices: [] };
-    if (current && current.name !== name) menus.delete(current.name);
-    const total = money(row.price);
-    const grams = gramsOf(row.grams);
-    if (total) {
-      // 총 가격 ÷ 그람수 × 100 → 100g당
-      const unitPrice = Math.max(1, Math.round((total / grams) * 100));
-      pushPrice(next, unitPrice, date, organized ? undefined : "fields", grams);
+      ? { ...current, name, unit, prices: [...current.prices] }
+      : { id: row.key, name, unit, prices: [] };
+    if (current) {
+      const oldKey = menuIdentityKey(
+        normalizeMenuName(current.name) || current.name,
+        withMenuUnit(current),
+      );
+      if (oldKey !== key) menus.delete(oldKey);
     }
-    menus.set(name, next);
+    const total = money(row.price);
+    if (total) {
+      // 직접입력 가격은 선택한 단위 단가 그대로 저장
+      pushPrice(next, total, date, organized ? undefined : "fields");
+    }
+    menus.set(key, next);
   }
 
   if (organized) {
     for (const row of organized.menus) {
       if (!row.name.trim() || isVagueMenuName(row.name) || row.price <= 0) continue;
-      const name = asPer100gName(row.name);
-      const base = menuBaseName(name);
-      const current =
-        menus.get(name) ??
-        [...menus.values()].find((menu) => menuBaseName(menu.name) === base);
+      const name = normalizeMenuName(row.name) || row.name.trim();
+      const unit = row.unit ?? withMenuUnit({ name: row.name });
+      const key = menuIdentityKey(name, unit);
+      const current = menus.get(key);
       const next: MenuItem = current
-        ? { ...current, name, prices: [...current.prices] }
-        : { id: crypto.randomUUID(), name, prices: [] };
-      if (current && current.name !== name) menus.delete(current.name);
+        ? { ...current, name, unit, prices: [...current.prices] }
+        : { id: crypto.randomUUID(), name, unit, prices: [] };
       pushPrice(next, row.price, date, "prose");
-      menus.set(name, next);
+      menus.set(key, next);
     }
   }
 

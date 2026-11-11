@@ -18,8 +18,14 @@ const promptFor = (storeName: string, category: string, text: string) => `너는
 - hours는 "오전 10시 ~ 저녁 8시"처럼 짧게 쓴다. 글에 없으면 빈 문자열이다.
 - items는 글에 나온 구체 판매 품목만 쉼표로 잇는다. 모호한 말은 빼라.
 - menus는 글에서 가격이 확인되고 이름이 구체적인 메뉴만 넣는다.
+- menus 항목의 name에는 단위 접미사를 붙이지 않는다. 예: "사과 한알"이 아니라 name은 "사과".
+- menus 항목의 unit은 반드시 다음 중 하나다: per_100g, per_piece, per_pack, each.
+  - 100g·g·근 등 무게면 per_100g (price는 100g당 가격)
+  - 한알·개·쪽이면 per_piece (price는 그 개당 가격, 100g로 바꾸지 말 것)
+  - 팩·봉지·망이면 per_pack
+  - 단위가 없으면 each
 - JSON 객체만 반환한다. 키는 category, hours, items, character, discount, note, menus 이다.
-- menus 항목은 name, price 만 가진다.
+- menus 항목은 name, price, unit 을 가진다.
 
 소비자 글:
 ${text}`;
