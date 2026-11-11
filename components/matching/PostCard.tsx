@@ -49,7 +49,10 @@ export function PostCard({
             </span>
           </p>
           <p className="mt-1 truncate text-xs text-hanok-main">
-            📍 {post.storeName} · {placeLabel(post.meetingPlace, post.customPlace)}
+            📍{" "}
+            {[post.storeName.trim(), placeLabel(post.meetingPlace, post.customPlace)]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

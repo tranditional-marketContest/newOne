@@ -115,7 +115,7 @@ export default function MyMatchingPage() {
                   return (
                     <article
                       key={post.id}
-                      className="space-y-2 rounded-[1.5rem] border-2 border-hanok-main bg-[#fff8ea] p-2 shadow-[0_10px_24px_rgba(129,85,48,0.12)]"
+                      className="space-y-2 rounded-[1.5rem] border-2 border-hanok-main bg-[#fffaf3] p-2 shadow-[0_10px_24px_rgba(155,35,53,0.12)]"
                     >
                       <div className="flex items-center justify-between px-2 pt-1 text-xs font-bold text-hanok-dark">
                         <span>{formatMatchedAt(post.matchedAt)} · 매칭 완료</span>

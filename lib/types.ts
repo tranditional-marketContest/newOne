@@ -48,6 +48,8 @@ export type Store = {
   discount: string;
   note: string;
   photos: string[];
+  /** 매니저가 찍은 지도 좌표. 화면 문구에는 쓰지 않는다. */
+  pin?: { x: number; y: number } | null;
   reviews: Review[];
   menus: MenuItem[];
   updatedAt: string;

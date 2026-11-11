@@ -56,8 +56,8 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
 
   const perPerson = pricePerPerson(draft.totalPrice, draft.peopleNeeded);
   const canNext = useMemo(() => {
-    if (step === 0) return Boolean(draft.category && draft.itemName.trim());
-    if (step === 1) return Boolean(draft.storeName.trim() && draft.menuName.trim());
+    if (step === 0) return Boolean(draft.category);
+    if (step === 1) return Boolean(draft.menuName.trim());
     if (step === 2) return draft.totalPrice > 0 && draft.peopleNeeded >= 2;
     if (step === 3) {
       if (draft.meetingPlace === "custom") return Boolean(draft.customPlace.trim());
@@ -79,12 +79,13 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
   };
 
   const handleSubmit = () => {
+    const payload = { ...draft, itemName: draft.menuName.trim() };
     if (isEditing && editPost) {
-      updatePost(editPost.id, draft);
+      updatePost(editPost.id, payload);
       handleClose();
       return;
     }
-    const post = createPost(draft);
+    const post = createPost(payload);
     handleClose();
     router.push(`/matching/${post.id}`);
   };
@@ -105,7 +106,7 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
             ) : (
               <>
                 반
-                <span className="mx-0.5 inline-block h-4 w-[2px] bg-danger align-middle" />
+                <span className="mx-0.5 inline-block h-4 w-[2px] bg-hanji-main align-middle" />
                 띵 글 올리기
               </>
             )}
@@ -210,7 +211,7 @@ function StepItem({
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-bold text-ink">어떤 품목을 반띵할까요?</h3>
-        <p className="mt-1 text-sm text-hanok-bright">카테고리를 고른 뒤 품목명을 적어 주세요.</p>
+        <p className="mt-1 text-sm text-hanok-bright">카테고리를 골라 주세요.</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {CATEGORIES.filter((item) => item.id !== "all").map((category) => {
@@ -233,15 +234,6 @@ function StepItem({
           );
         })}
       </div>
-      <label className="block">
-        <span className="mb-1.5 block text-sm font-medium text-hanok-deep">품목명</span>
-        <input
-          value={draft.itemName}
-          onChange={(event) => update("itemName", event.target.value)}
-          placeholder="예: 사과 10입"
-          className="w-full rounded-2xl border border-hanji-fiber bg-hanji-main px-4 py-3 outline-none ring-hanok-main focus:ring-2"
-        />
-      </label>
     </div>
   );
 }
@@ -257,10 +249,10 @@ function StepStore({
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-bold text-ink">어느 가게에서 살까요?</h3>
-        <p className="mt-1 text-sm text-hanok-bright">가게와 메뉴를 알려 주세요.</p>
+        <p className="mt-1 text-sm text-hanok-bright">상품을 적어 주세요. 가게 이름은 비워도 됩니다.</p>
       </div>
       <label className="block">
-        <span className="mb-1.5 block text-sm font-medium text-hanok-deep">가게 이름</span>
+        <span className="mb-1.5 block text-sm font-medium text-hanok-deep">가게 이름 (선택)</span>
         <input
           value={draft.storeName}
           onChange={(event) => update("storeName", event.target.value)}
@@ -295,7 +287,7 @@ function StepPeople({
       <div>
         <h3 className="text-lg font-bold text-ink">몇 명이서 나눌까요?</h3>
         <p className="mt-1 text-sm text-hanok-bright">
-          {draft.itemName || "선택 품목"} · {formatPrice(draft.totalPrice)}
+          {draft.menuName.trim() || "선택 상품"} · {formatPrice(draft.totalPrice)}
         </p>
       </div>
       <label className="block">
@@ -346,7 +338,7 @@ function StepPeople({
         <p className="text-sm text-hanji-soft">
           {formatPrice(draft.totalPrice)} ÷ {draft.peopleNeeded}명 · 내 몫 포함
         </p>
-        <p className="text-lg font-bold text-[#f2d3a2]">1인 {formatPrice(perPerson)}</p>
+        <p className="text-lg font-bold text-hanji-main">1인 {formatPrice(perPerson)}</p>
       </div>
     </div>
   );
@@ -437,15 +429,19 @@ function StepDeadline({
           </div>
           <div className="min-w-0">
             <p className="truncate font-bold text-ink">
-              {draft.itemName || "품목"} {draft.peopleNeeded}명이서 나눠요
+              {draft.menuName.trim() || "상품"} {draft.peopleNeeded}명이서 나눠요
             </p>
             <p className="text-sm font-semibold text-hanok-deep">
               {formatPrice(perPerson)} / 1인
             </p>
             <p className="truncate text-xs text-hanok-main">
-              {draft.storeName || "가게"} ·{" "}
-              {placeLabel(draft.meetingPlace, draft.customPlace)} ·{" "}
-              {DEADLINE_LABELS[draft.deadline]} 모집
+              {[
+                draft.storeName.trim(),
+                placeLabel(draft.meetingPlace, draft.customPlace),
+                `${DEADLINE_LABELS[draft.deadline]} 모집`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
         </div>

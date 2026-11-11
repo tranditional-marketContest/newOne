@@ -1,3 +1,5 @@
+import { visibleNote } from "@/lib/store-pin";
+
 export type StoreCategory = string;
 
 export type Store = {
@@ -68,11 +70,11 @@ export function findStore(stores: Store[], id: string) {
 }
 
 export function storeSummary(store: Store) {
-  return store.character || store.items || store.note || "소개가 아직 없습니다";
+  return store.character || store.items || visibleNote(store.note) || "소개가 아직 없습니다";
 }
 
 export function storeTags(store: Store) {
-  return [store.items, store.discount, store.note].map((value) => value.trim()).filter(Boolean);
+  return [store.items, store.discount, visibleNote(store.note)].map((value) => value.trim()).filter(Boolean);
 }
 
 function categoryRank(category: string) {

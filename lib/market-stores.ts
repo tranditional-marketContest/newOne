@@ -1,5 +1,6 @@
 import { shops } from "@/lib/course";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
+import { isRemovedStore, noteWithPin, readPin, visibleNote } from "@/lib/store-pin";
 import { getSupabase } from "@/lib/supabase/client";
 import type { MenuItem, Store as WikiStore } from "@/lib/types";
 import { inferUnitFromName, isPriceUnit, menuIdentityKey, normalizeMenuName } from "@/lib/units";
@@ -19,10 +20,13 @@ function lanePoint(index: number) {
 }
 
 export function placeOnBlockMap(rows: StoreRow[]): Store[] {
-  return rows.map((row, index) => {
-    const point = knownPoints.get(row.name) ?? lanePoint(index);
-    return { ...row, x: point.x, y: point.y };
+  const placed: Store[] = [];
+  rows.forEach((row, index) => {
+    if (isRemovedStore(row.note)) return;
+    const point = readPin(row.note) ?? knownPoints.get(row.name) ?? lanePoint(index);
+    placed.push({ ...row, note: visibleNote(row.note), x: point.x, y: point.y });
   });
+  return placed;
 }
 
 function wikiToRows(stores: WikiStore[]): StoreRow[] {
@@ -34,7 +38,7 @@ function wikiToRows(stores: WikiStore[]): StoreRow[] {
     items: store.items ?? "",
     character: store.character ?? "",
     discount: store.discount ?? "",
-    note: store.note ?? "",
+    note: noteWithPin(store.note ?? "", store.pin),
     photos: Array.isArray(store.photos) ? store.photos : [],
   }));
 }
@@ -135,47 +139,62 @@ type RemoteStore = {
 
 export async function loadStoresForMap(): Promise<Store[]> {
   const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from("stores")
-        .select("id,name,category,hours,items,character,discount,note,photos")
-        .order("name", { ascending: true });
-      if (!error && data && data.length > 0) {
-        const prices = await supabase
-          .from("menu_prices")
-          .select("store_id,menu_name,amount,grams,source,visited_date,unit");
-        if (!prices.error && prices.data) {
-          rememberMenus(prices.data as {
-            store_id: string;
-            menu_name: string;
-            amount: number;
-            grams: number | null;
-            source: "prose" | "fields" | null;
-            visited_date: string;
-            unit?: string | null;
-          }[]);
-        }
-        return placeOnBlockMap(
-          (data as RemoteStore[]).map((record) => ({
-            id: record.id,
-            name: record.name,
-            category: record.category,
-            hours: record.hours?.trim() ?? "",
-            items: record.items?.trim() ?? "",
-            character: record.character?.trim() ?? "",
-            discount: record.discount?.trim() ?? "",
-            note: record.note?.trim() ?? "",
-            photos: (record.photos ?? []).filter((photo) => photo.startsWith("https://")),
-          })),
-        );
-      }
-    } catch {
-      // 위키에 등록된 가게로 넘어간다.
-    }
-  }
+  if (!supabase) return seedStoresOnMap();
 
-  const wiki = readWikiStoresFromBrowser();
-  if (wiki.length > 0) return wiki;
-  return seedStoresOnMap();
+  try {
+    const { data, error } = await supabase
+      .from("stores")
+      .select("id,name,category,hours,items,character,discount,note,photos")
+      .order("name", { ascending: true })
+      .order("id", { ascending: true });
+    if (error || !data) return [];
+    if (data.length === 0) return [];
+
+    const prices = await supabase
+      .from("menu_prices")
+      .select("store_id,menu_name,amount,grams,source,visited_date,unit");
+    if (!prices.error && prices.data) {
+      rememberMenus(prices.data as {
+        store_id: string;
+        menu_name: string;
+        amount: number;
+        grams: number | null;
+        source: "prose" | "fields" | null;
+        visited_date: string;
+        unit?: string | null;
+      }[]);
+    }
+    const rows = (data as RemoteStore[]).map((record) => ({
+      id: record.id,
+      name: record.name,
+      category: record.category,
+      hours: record.hours?.trim() ?? "",
+      items: record.items?.trim() ?? "",
+      character: record.character?.trim() ?? "",
+      discount: record.discount?.trim() ?? "",
+      note: record.note?.trim() ?? "",
+      photos: (record.photos ?? []).filter((photo) => photo.startsWith("https://")),
+    }));
+    const placed = placeOnBlockMap(rows);
+    await lockMissingPins(rows, placed);
+    return placed;
+  } catch {
+    return [];
+  }
+}
+
+async function lockMissingPins(rows: StoreRow[], placed: Store[]) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const byId = new Map(placed.map((store) => [store.id, store]));
+  await Promise.all(
+    rows.map(async (row) => {
+      if (isRemovedStore(row.note) || readPin(row.note)) return;
+      const spot = byId.get(row.id);
+      if (!spot) return;
+      const note = noteWithPin(row.note, { x: spot.x, y: spot.y });
+      if (note === row.note) return;
+      await supabase.from("stores").update({ note }).eq("id", row.id);
+    }),
+  );
 }

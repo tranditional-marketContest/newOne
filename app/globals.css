@@ -51,6 +51,25 @@ body {
   font-family: var(--font-sans);
 }
 
+.map-scrollbar {
+  scrollbar-color: #8a7568 #efe8dc;
+  scrollbar-width: auto;
+}
+
+.map-scrollbar::-webkit-scrollbar {
+  width: 14px;
+}
+
+.map-scrollbar::-webkit-scrollbar-track {
+  background: #efe8dc;
+}
+
+.map-scrollbar::-webkit-scrollbar-thumb {
+  background: #8a7568;
+  border: 3px solid #efe8dc;
+  border-radius: 999px;
+}
+
 .fan-svg {
   filter: drop-shadow(0 -8px 16px rgba(42, 33, 24, 0.08));
 }
@@ -216,7 +235,19 @@ body {
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(253, 245, 229, 0.96), rgba(250, 241, 223, 0.98));
+  background: #fbf6ef;
+  --hanok-main: #9b2335;
+  --hanok-bright: #8a7b6c;
+  --hanok-light: #e6d7c8;
+  --hanok-deep: #6a3a32;
+  --hanok-dark: #7a1c2b;
+  --hanok-darkest: #2a2118;
+  --hanji-main: #fffaf3;
+  --hanji-warm: #fbf6ef;
+  --hanji-soft: #f6ebe1;
+  --hanji-fiber: #e6d7c8;
+  --ink: #2a2118;
+  --danger: #9b2335;
 }
 
 .matching-root .app-shell {
@@ -235,6 +266,24 @@ body {
   transform: translateZ(0);
 }
 
+.category-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #b7a08a transparent;
+}
+
+.category-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.category-scroll::-webkit-scrollbar-thumb {
+  background: #b7a08a;
+  border-radius: 999px;
+}
+
+.category-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .matching-root .app-fab {
   position: fixed;
   right: 1.25rem;
@@ -243,8 +292,11 @@ body {
 }
 
 .wood-bar {
-  background: linear-gradient(180deg, var(--hanok-bright) 0%, var(--hanok-main) 45%, var(--hanok-deep) 100%);
-  color: var(--hanji-main);
+  background: linear-gradient(180deg, #ad865f 0%, #996f45 45%, #815530 100%);
+  color: #fdf5e5;
+  --hanji-main: #fdf5e5;
+  --hanji-soft: #ede2cd;
+  --hanok-deep: #815530;
 }
 
 .hanji-panel {

@@ -1,11 +1,11 @@
 export type CategoryId =
   | "all"
-  | "food"
-  | "clothes"
-  | "snack"
-  | "kitchen"
-  | "tools"
-  | "etc";
+  | "식당"
+  | "간식"
+  | "식자재"
+  | "생활용품"
+  | "의류"
+  | "기타";
 
 export type MeetingPlace =
   | "store-front"

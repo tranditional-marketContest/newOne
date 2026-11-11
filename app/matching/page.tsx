@@ -37,7 +37,7 @@ export default function MatchingListPage() {
   }, [openPosts]);
 
   return (
-    <main className="relative flex min-h-full flex-col pb-28">
+    <main className="relative flex min-h-full w-full min-w-0 max-w-full flex-col overflow-x-hidden pb-28">
       <MatchingHeader backHref="/" onBellClick={() => setAlertOpen(true)} />
       <CategoryBar value={category} onChange={setCategory} counts={counts} />
 
@@ -90,10 +90,10 @@ export default function MatchingListPage() {
       <button
         type="button"
         onClick={() => setWizardOpen(true)}
-        className="app-fab fab-pulse flex h-[4.6rem] w-[4.6rem] flex-col items-center justify-center rounded-full bg-hanok-main text-hanji-main shadow-[0_12px_28px_rgba(129,85,48,0.35)]"
+        className="app-fab fab-pulse flex h-[4.6rem] w-[4.6rem] flex-col items-center justify-center rounded-full bg-hanok-main text-hanji-main shadow-[0_12px_28px_rgba(155,35,53,0.35)]"
       >
         <span className="font-[family-name:var(--font-display)] text-[0.95rem] font-bold leading-none">
-          반<span className="mx-[1px] inline-block h-3 w-[2px] bg-danger align-middle" />띵
+          반<span className="mx-[1px] inline-block h-3 w-[2px] bg-hanji-main align-middle" />띵
         </span>
         <span className="mt-1 text-[0.62rem] font-medium">제안하기</span>
       </button>

@@ -85,10 +85,12 @@ export function PostDetailClient({ id }: { id: string }) {
             </div>
 
             <dl className="space-y-3 text-sm">
-              <div className="flex justify-between gap-3 border-b border-hanji-soft pb-3">
-                <dt className="text-hanok-bright">가게</dt>
-                <dd className="font-medium text-ink">{post.storeName}</dd>
-              </div>
+              {post.storeName.trim() ? (
+                <div className="flex justify-between gap-3 border-b border-hanji-soft pb-3">
+                  <dt className="text-hanok-bright">가게</dt>
+                  <dd className="font-medium text-ink">{post.storeName}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-3 border-b border-hanji-soft pb-3">
                 <dt className="text-hanok-bright">메뉴</dt>
                 <dd className="font-medium text-ink">{post.menuName}</dd>
@@ -142,7 +144,7 @@ export function PostDetailClient({ id }: { id: string }) {
         ) : canStartChat ? (
           <Link
             href={`/matching/${post.id}/chat`}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-hanok-main py-3.5 text-base font-bold text-hanji-main shadow-[0_10px_24px_rgba(129,85,48,0.28)]"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-hanok-main py-3.5 text-base font-bold text-hanji-main shadow-[0_10px_24px_rgba(155,35,53,0.28)]"
           >
             <span className="text-lg">💬</span>
             1대1 채팅하기

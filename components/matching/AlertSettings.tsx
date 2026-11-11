@@ -141,7 +141,7 @@ export function AlertSettings({ open, onClose }: AlertSettingsProps) {
                       className={`block rounded-2xl border px-4 py-3 transition ${
                         item.read
                           ? "border-hanji-soft bg-hanji-main"
-                          : "border-hanok-light bg-[#fff8ea]"
+                          : "border-hanok-light bg-[#fffaf3]"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">

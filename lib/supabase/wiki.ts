@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types";
 import { WIKI_CATEGORIES } from "@/lib/types";
 import { isPriceUnit, menuIdentityKey, normalizeMenuName } from "@/lib/units";
+import { isRemovedStore, readPin, visibleNote } from "@/lib/store-pin";
 import { getSupabase } from "./client";
 
 type StoreRow = {
@@ -119,20 +120,23 @@ export async function fetchStoresFromSupabase(): Promise<Store[] | null> {
     menusByStore.set(row.store_id, byKey);
   }
 
-  return (storeRows as StoreRow[]).map((row) => ({
-    id: row.id,
-    name: row.name,
-    category: asCategory(row.category),
-    hours: row.hours ?? "",
-    items: row.items ?? "",
-    character: row.character ?? "",
-    discount: row.discount ?? "",
-    note: row.note ?? "",
-    photos: asPhotos(row.photos),
-    reviews: reviewsByStore.get(row.id) ?? [],
-    menus: [...(menusByStore.get(row.id)?.values() ?? [])],
-    updatedAt: row.updated_at ?? "",
-  }));
+  return (storeRows as StoreRow[])
+    .filter((row) => !isRemovedStore(row.note))
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: asCategory(row.category),
+      hours: row.hours ?? "",
+      items: row.items ?? "",
+      character: row.character ?? "",
+      discount: row.discount ?? "",
+      note: visibleNote(row.note),
+      pin: readPin(row.note),
+      photos: asPhotos(row.photos),
+      reviews: reviewsByStore.get(row.id) ?? [],
+      menus: [...(menusByStore.get(row.id)?.values() ?? [])],
+      updatedAt: row.updated_at ?? "",
+    }));
 }
 
 function priceRowsFromStore(store: Store) {
@@ -152,25 +156,6 @@ function priceRowsFromStore(store: Store) {
 export async function syncStoresToSupabase(stores: Store[]): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase || stores.length === 0) return false;
-
-  const payload = stores.map((store) => ({
-    id: store.id,
-    name: store.name,
-    category: store.category,
-    hours: store.hours,
-    items: store.items,
-    character: store.character,
-    discount: store.discount,
-    note: store.note,
-    photos: store.photos,
-    updated_at: store.updatedAt || null,
-  }));
-
-  const { error } = await supabase.from("stores").upsert(payload, { onConflict: "id" });
-  if (error) {
-    console.error(error);
-    return false;
-  }
 
   for (const store of stores) {
     const reviewCount = store.reviews?.length ?? 0;
@@ -207,6 +192,9 @@ export async function syncStoresToSupabase(stores: Store[]): Promise<boolean> {
 export async function seedStoresToSupabase(stores: Store[]): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
+
+  const existing = await supabase.from("stores").select("id").limit(1);
+  if (existing.error || (existing.data?.length ?? 0) > 0) return !existing.error;
 
   const payload = stores.map((store) => ({
     id: store.id,
@@ -275,21 +263,23 @@ export async function persistWikiSubmission(input: {
   const purchasedItems =
     draft.purchasedItems.trim() || (!organized ? menuNames.join(", ") : "");
 
-  const { error: storeError } = await supabase.from("stores").upsert(
-    {
-      id: store.id,
-      name: store.name,
-      category: store.category,
+  const existing = await supabase.from("stores").select("note").eq("id", store.id).maybeSingle();
+  if (existing.error) return { ok: false, message: existing.error.message };
+  if (!existing.data || isRemovedStore(existing.data.note)) {
+    return { ok: false, message: "가게를 찾지 못했습니다." };
+  }
+
+  const { error: storeError } = await supabase
+    .from("stores")
+    .update({
       hours: store.hours,
       items: store.items,
       character: store.character,
       discount: store.discount,
-      note: store.note,
       photos: store.photos,
       updated_at: store.updatedAt || visitedDate || null,
-    },
-    { onConflict: "id" },
-  );
+    })
+    .eq("id", store.id);
   if (storeError) return { ok: false, message: storeError.message };
 
   let reviewId: string | null = null;

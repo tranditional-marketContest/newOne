@@ -8,7 +8,8 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import Link from "next/link";
+import { MapScrollBar } from "@/components/map-scrollbar";
+import { ScreenTitle } from "@/components/screen-title";
 import {
   buildGeneratedCourse,
   buildQuickCourse,
@@ -262,7 +263,9 @@ export function CourseApp() {
 
   return (
     <main className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f7f6f3] text-[#1c1915]">
-      <div className="relative min-h-0 w-full flex-1 overflow-hidden">
+      <ScreenTitle title="코스 추천" onBack={phase === "home" ? undefined : goHome} />
+      <div className="relative flex min-h-0 w-full flex-1 overflow-hidden">
+        <div className="relative min-w-0 flex-1">
         <div
           ref={viewportRef}
           className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
@@ -349,25 +352,12 @@ export function CourseApp() {
             −
           </button>
         </div>
-
-        {phase === "home" ? (
-          <Link
-            href="/"
-            aria-label="메인으로"
-            className="absolute top-3 left-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl shadow"
-          >
-            ←
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={goHome}
-            aria-label="뒤로"
-            className="absolute top-3 left-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl shadow"
-          >
-            ←
-          </button>
-        )}
+        </div>
+        <MapScrollBar
+          height={Math.max(view.height, view.width * MAP_RATIO * scale)}
+          scrollTop={Math.max(0, -offset.y)}
+          onScroll={(top) => setOffset((off) => clampOffset({ x: off.x, y: -top }, scale))}
+        />
       </div>
 
       <aside className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-y-auto">

@@ -1,16 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ScreenTitle } from "@/components/screen-title";
 import { applyDraft } from "@/lib/apply";
 import { withMenuUnit } from "@/lib/menu-board";
 import { coerceOrganized } from "@/lib/organize";
 import { seedStores, STORE_STORAGE_KEY } from "@/lib/seed";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase, syncStoresToSupabase } from "@/lib/supabase/wiki";
+import { fetchStoresFromSupabase, persistWikiSubmission, seedStoresToSupabase } from "@/lib/supabase/wiki";
 import type { EditorDraft, OrganizedWiki, Store } from "@/lib/types";
 import { normalizeMenuName } from "@/lib/units";
-import { BackIcon } from "./icons";
 import StoreDetail from "./StoreDetail";
 import StoreEditor from "./StoreEditor";
 import StoreList from "./StoreList";
@@ -64,7 +63,12 @@ export default function WikiApp() {
         const remote = await fetchStoresFromSupabase();
         if (cancelled) return;
 
-        if (remote && remote.length > 0) {
+        if (remote === null) {
+          setHydrated(true);
+          return;
+        }
+
+        if (remote.length > 0) {
           setStores(remote);
           setSelectedId(
             [...remote].sort((a, b) => a.name.localeCompare(b.name, "ko"))[0]?.id ?? firstStoreId,
@@ -112,8 +116,6 @@ export default function WikiApp() {
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(stores));
-    if (!isSupabaseConfigured()) return;
-    void syncStoresToSupabase(stores);
   }, [hydrated, stores]);
 
   const visibleStores = useMemo(() => {
@@ -244,19 +246,7 @@ export default function WikiApp() {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#f3ecdf]">
-      <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-1 md:px-5">
-        <Link
-          href="/"
-          aria-label="메인 지도로"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#2a2118] shadow-sm ring-1 ring-[#2a2118]/10"
-        >
-          <BackIcon className="h-6 w-6" />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold tracking-wide text-[#c4492c]">신원시장</p>
-          <h1 className="text-2xl font-bold tracking-tight">신원위키</h1>
-        </div>
-      </header>
+      <ScreenTitle title="신원위키" />
 
       <main className="relative min-h-0 flex-1 p-3 md:px-5 md:pb-5">
         <div className="h-full min-h-0">

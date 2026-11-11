@@ -5,7 +5,7 @@ import { CURRENT_USER } from "./types";
 export const SEED_POSTS: MatchingPost[] = [
   {
     id: "post-1",
-    category: "food",
+    category: "식자재",
     itemName: "감귤 5kg 박스",
     storeName: "청과 한마당",
     menuName: "제주감귤 5kg",
@@ -24,7 +24,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-2",
-    category: "food",
+    category: "식당",
     itemName: "순대국밥 세트",
     storeName: "소문난순대집",
     menuName: "모둠순대 + 국밥",
@@ -42,7 +42,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-3",
-    category: "clothes",
+    category: "의류",
     itemName: "양말 10켤레 묶음",
     storeName: "시장양말집",
     menuName: "면양말 10켤레",
@@ -61,7 +61,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-4",
-    category: "snack",
+    category: "간식",
     itemName: "호떡 한 판",
     storeName: "신원 호떡",
     menuName: "씨앗호떡 12개",
@@ -79,7 +79,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-5",
-    category: "kitchen",
+    category: "식자재",
     itemName: "김치 2kg",
     storeName: "엄마손반찬",
     menuName: "배추김치 2kg",
@@ -98,7 +98,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-6",
-    category: "food",
+    category: "식자재",
     itemName: "쌀 10kg",
     storeName: "신원미곡",
     menuName: "경기미 10kg",
@@ -117,7 +117,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-7",
-    category: "tools",
+    category: "생활용품",
     itemName: "휴지 30롤",
     storeName: "생활잡화마트",
     menuName: "3겹 화장지 30롤",
@@ -136,7 +136,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-matched-1",
-    category: "food",
+    category: "식자재",
     itemName: "사과 10입",
     storeName: "과일나라",
     menuName: "부사 사과 10입",
@@ -156,7 +156,7 @@ export const SEED_POSTS: MatchingPost[] = [
   },
   {
     id: "post-mine-open",
-    category: "snack",
+    category: "간식",
     itemName: "씨앗호떡 한 판",
     storeName: "신원 호떡",
     menuName: "씨앗호떡 12개",

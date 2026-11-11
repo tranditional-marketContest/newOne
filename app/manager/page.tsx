@@ -3,20 +3,24 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { MarketMap } from "@/components/MarketMap";
-import { PhoneShell } from "@/components/PhoneShell";
-import {
-  STORE_CATEGORIES,
-  type StoreCategory,
-} from "@/data/stores";
-import { useStores } from "@/hooks/useStores";
+import { AppFrame } from "@/components/app-frame";
+import { BlockMarketMap } from "@/components/block-market-map";
+import { StoreDetail } from "@/components/sheets";
+import { categoryFilters, storeSummary, type Store } from "@/data/market";
+import { STORE_CATEGORIES, type StoreCategory } from "@/data/stores";
 import { clearManagerAuthed, isManagerAuthed } from "@/lib/managerAuth";
+import { loadStoresForMap } from "@/lib/market-stores";
+import { deleteStoreFromSupabase, insertStoreToSupabase } from "@/lib/storesApi";
 
 type Tab = "register" | "delete";
 
 export default function ManagerPage() {
   const router = useRouter();
-  const { stores, ready, addStore, removeStore } = useStores();
+  const [stores, setStores] = useState<Store[]>([]);
+  const [ready, setReady] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("전체");
+  const [briefId, setBriefId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<Tab>("register");
@@ -27,6 +31,8 @@ export default function ManagerPage() {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!isManagerAuthed()) {
@@ -35,14 +41,28 @@ export default function ManagerPage() {
     }
     setAuthed(true);
     setChecking(false);
+    void loadStoresForMap().then((next) => {
+      setStores(next);
+      setReady(true);
+    });
   }, [router]);
+
+  const categories = categoryFilters(stores);
+  const brief = stores.find((store) => store.id === briefId) ?? null;
+  const detail = stores.find((store) => store.id === detailId) ?? null;
 
   const selectedStore = useMemo(
     () => stores.find((store) => store.id === selectedId) ?? null,
     [stores, selectedId],
   );
 
-  function handleRegister() {
+  async function reloadStores() {
+    const next = await loadStoresForMap();
+    setStores(next);
+    setReady(true);
+  }
+
+  async function handleRegister() {
     const trimmed = name.trim();
     if (!trimmed) {
       setMessage("점포 이름을 입력해 주세요.");
@@ -52,35 +72,54 @@ export default function ManagerPage() {
       setMessage("지도에서 가게 위치를 찍어 주세요.");
       return;
     }
-    addStore({
-      name: trimmed,
-      category,
-      x: pendingPin.x,
-      y: pendingPin.y,
-    });
-    setName("");
-    setCategory("식자재");
-    setPendingPin(null);
-    setMessage(`「${trimmed}」(${category})을(를) 등록했습니다.`);
+    setSaving(true);
+    setMessage(null);
+    try {
+      await insertStoreToSupabase({ name: trimmed, category, x: pendingPin.x, y: pendingPin.y });
+      await reloadStores();
+      setName("");
+      setCategory("식자재");
+      setPendingPin(null);
+      setMessage(`「${trimmed}」(${category})을(를) 등록했습니다.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "가게를 등록하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleDelete(id: string, storeName: string) {
-    removeStore(id);
-    if (selectedId === id) setSelectedId(null);
-    setMessage(`「${storeName}」을(를) 삭제했습니다.`);
+  async function handleDelete(id: string, storeName: string) {
+    setSaving(true);
+    setMessage(null);
+    setPendingDelete(null);
+    try {
+      await deleteStoreFromSupabase(id);
+      if (selectedId === id) setSelectedId(null);
+      if (briefId === id) setBriefId(null);
+      if (detailId === id) setDetailId(null);
+      await reloadStores();
+      setMessage(`「${storeName}」을(를) 삭제했습니다.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "가게를 삭제하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (checking || !authed) {
     return (
-      <PhoneShell className="items-center justify-center">
-        <p className="text-[15px] text-[#6f675c]">인증 확인 중…</p>
-      </PhoneShell>
+      <AppFrame>
+        <div className="flex h-full items-center justify-center bg-[#f7f3ea]">
+          <p className="text-[15px] text-[#6f675c]">인증 확인 중…</p>
+        </div>
+      </AppFrame>
     );
   }
 
   return (
-    <PhoneShell>
-        <header className="flex items-center gap-3">
+    <AppFrame>
+      <div className="relative flex h-full min-h-0 flex-col bg-[#f7f3ea] text-[#1c1915]">
+        <header className="flex shrink-0 items-center gap-3 px-4 pt-4">
           <Link
             href="/mypage"
             onClick={() => clearManagerAuthed()}
@@ -98,7 +137,7 @@ export default function ManagerPage() {
         </header>
 
         <div
-          className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5"
+          className="mx-4 mt-4 grid shrink-0 grid-cols-2 gap-2 rounded-2xl bg-white p-1.5"
           role="tablist"
           aria-label="매니저 기능"
         >
@@ -106,6 +145,7 @@ export default function ManagerPage() {
             active={tab === "register"}
             onClick={() => {
               setTab("register");
+              setPendingDelete(null);
               setMessage(null);
             }}
           >
@@ -116,6 +156,7 @@ export default function ManagerPage() {
             onClick={() => {
               setTab("delete");
               setPendingPin(null);
+              setPendingDelete(null);
               setMessage(null);
             }}
           >
@@ -124,24 +165,28 @@ export default function ManagerPage() {
         </div>
 
         {!ready ? (
-          <p className="mt-8 text-[15px] text-[#6f675c]">지도 불러오는 중…</p>
+          <p className="mt-8 px-4 text-[15px] text-[#6f675c]">지도 불러오는 중…</p>
         ) : tab === "register" ? (
-          <div className="mt-5 flex flex-col gap-4">
-            <p className="text-[14px] leading-6 text-[#4d463d]">
-              지도를 확대·이동한 뒤, 점포 자리를 눌러 빨간 점을 찍고 이름과
-              카테고리를 등록하세요.
-            </p>
+          <div className="mt-3 flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1">
+              <BlockMarketMap
+                stores={stores}
+                categories={categories}
+                category={categoryFilter}
+                onCategory={setCategoryFilter}
+                brief={brief}
+                onBrief={setBriefId}
+                onOpenDetail={setDetailId}
+                placeMode
+                pendingPin={pendingPin}
+                onPlacePin={(pin) => {
+                  setPendingPin(pin);
+                  setMessage(null);
+                }}
+              />
+            </div>
 
-            <MarketMap
-              stores={stores}
-              placeMode
-              pendingPin={pendingPin}
-              onPlacePin={(pin) => {
-                setPendingPin(pin);
-                setMessage(null);
-              }}
-            />
-
+            <div className="flex max-h-[34%] shrink-0 flex-col gap-3 overflow-auto border-t border-[#ddd3c3] bg-[#f7f3ea] px-4 pt-3 pb-4">
             <label className="block">
               <span className="text-[13px] font-medium text-[#6f675c]">
                 점포 이름
@@ -194,25 +239,33 @@ export default function ManagerPage() {
 
             <button
               type="button"
-              onClick={handleRegister}
-              className="h-14 w-full rounded-2xl bg-[#234237] text-[16px] font-bold text-white"
+              onClick={() => void handleRegister()}
+              disabled={saving}
+              className="h-16 w-full shrink-0 rounded-2xl bg-[#234237] text-[16px] font-bold text-white disabled:opacity-60"
             >
-              가게 등록하기
+              {saving ? "등록하는 중…" : "가게 등록하기"}
             </button>
+            </div>
           </div>
         ) : (
-          <div className="mt-5 flex flex-col gap-4">
-            <p className="text-[14px] leading-6 text-[#4d463d]">
-              등록된 상점을 확인하고, 없어진 가게는 목록에서 삭제하세요.
-            </p>
+          <div className="mt-3 flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1">
+              <BlockMarketMap
+                stores={stores}
+                categories={categories}
+                category={categoryFilter}
+                onCategory={setCategoryFilter}
+                brief={brief}
+                onBrief={(id) => {
+                  setBriefId(id);
+                  setSelectedId(id);
+                }}
+                onOpenDetail={setDetailId}
+                onDelete={(store) => setPendingDelete({ id: store.id, name: store.name })}
+              />
+            </div>
 
-            <MarketMap
-              stores={stores}
-              selectedId={selectedId}
-              onSelectStore={setSelectedId}
-            />
-
-            <ul className="flex flex-col gap-3">
+            <ul className="flex max-h-[34%] shrink-0 flex-col gap-3 overflow-auto border-t border-[#ddd3c3] bg-[#f7f3ea] px-4 pt-3 pb-4">
               {stores.length === 0 ? (
                 <li className="rounded-2xl bg-white px-4 py-8 text-center text-[14px] text-[#8a8174]">
                   등록된 가게가 없습니다.
@@ -230,22 +283,25 @@ export default function ManagerPage() {
                         <button
                           type="button"
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                          onClick={() => setSelectedId(store.id)}
+                          onClick={() => {
+                            setSelectedId(store.id);
+                            setBriefId(store.id);
+                          }}
                         >
                           <span className="size-3 shrink-0 rounded-full bg-[#e23a2b]" />
                           <span className="min-w-0">
                             <span className="block truncate text-[15px] font-bold">
                               {store.name}
                             </span>
-                            <span className="mt-0.5 block text-[12px] text-[#8a8174]">
-                              {store.category} · 위치 {store.x.toFixed(0)},{" "}
-                              {store.y.toFixed(0)}
+                            <span className="mt-0.5 block truncate text-[12px] text-[#8a8174]">
+                              {store.category} · {storeSummary(store)}
                             </span>
                           </span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(store.id, store.name)}
+                          onClick={() => setPendingDelete({ id: store.id, name: store.name })}
+                          disabled={saving}
                           className="h-10 shrink-0 rounded-xl bg-[#f6e6e2] px-3 text-[13px] font-bold text-[#a6452f]"
                         >
                           삭제
@@ -255,23 +311,54 @@ export default function ManagerPage() {
                   );
                 })
               )}
+              {selectedStore ? (
+                <li className="px-1 text-[13px] text-[#6f675c]">
+                  선택됨: <span className="font-medium text-[#234237]">{selectedStore.name}</span>
+                </li>
+              ) : null}
             </ul>
-
-            {selectedStore ? (
-              <p className="text-[13px] text-[#6f675c]">
-                선택됨:{" "}
-                <span className="font-medium text-[#234237]">
-                  {selectedStore.name}
-                </span>
-              </p>
-            ) : null}
           </div>
         )}
 
         {message ? (
-          <p className="mt-4 text-[13px] leading-5 text-[#234237]">{message}</p>
+          <p className="shrink-0 px-4 pb-3 text-[13px] leading-5 text-[#234237]">{message}</p>
         ) : null}
-    </PhoneShell>
+        {detail ? <StoreDetail store={detail} onClose={() => setDetailId(null)} /> : null}
+        {pendingDelete ? (
+          <div className="absolute inset-0 z-50 flex items-end justify-center bg-[#2a2118]/45 px-4 pb-6">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-confirm-title"
+              className="w-full rounded-[1.6rem] bg-[#fffaf3] p-5 shadow-[0_24px_60px_rgba(42,33,24,0.22)]"
+            >
+              <h2 id="delete-confirm-title" className="text-center text-[18px] font-bold text-[#2a2118]">
+                가게를 삭제하시겠습니까?
+              </h2>
+              <p className="mt-2 text-center text-[14px] text-[#6f675c]">{pendingDelete.name}</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(pendingDelete.id, pendingDelete.name)}
+                  disabled={saving}
+                  className="h-12 rounded-2xl bg-[#a6452f] text-[15px] font-bold text-white disabled:opacity-60"
+                >
+                  삭제
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(null)}
+                  disabled={saving}
+                  className="h-12 rounded-2xl bg-white text-[15px] font-bold text-[#2a2118] ring-1 ring-[#2a2118]/10"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </AppFrame>
   );
 }
 

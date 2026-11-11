@@ -1,62 +1,50 @@
-import {
-  isStoreCategory,
-  type Store,
-  type StoreCategory,
-} from "@/data/stores";
-import { supabase } from "@/lib/supabase/client";
-
-/** Supabase public.stores 행 */
-export type StoreRow = {
-  id: string;
-  name: string;
-  category: string;
-  map_x: number;
-  map_y: number;
-  created_at?: string;
-};
-
-export function rowToStore(row: StoreRow): Store {
-  return {
-    id: row.id,
-    name: row.name,
-    category: isStoreCategory(row.category) ? row.category : "기타",
-    x: Number(row.map_x),
-    y: Number(row.map_y),
-  };
-}
-
-export async function fetchStoresFromSupabase(): Promise<Store[]> {
-  const { data, error } = await supabase
-    .from("stores")
-    .select("id,name,category,map_x,map_y,created_at")
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return (data as StoreRow[] | null)?.map(rowToStore) ?? [];
-}
+import { getSupabase } from "@/lib/supabase/client";
+import { noteMarkedRemoved, noteWithPin, type MapPin } from "@/lib/store-pin";
 
 export async function insertStoreToSupabase(input: {
   name: string;
-  category: StoreCategory;
+  category: string;
   x: number;
   y: number;
-}): Promise<Store> {
-  const { data, error } = await supabase
-    .from("stores")
-    .insert({
-      name: input.name.trim(),
-      category: input.category,
-      map_x: input.x,
-      map_y: input.y,
-    })
-    .select("id,name,category,map_x,map_y,created_at")
-    .single();
+}): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase가 설정되지 않았습니다.");
+
+  const pin: MapPin = { x: input.x, y: input.y };
+  const { error } = await supabase.from("stores").insert({
+    id: `m-${Date.now().toString(36)}`,
+    name: input.name.trim(),
+    category: input.category,
+    hours: "",
+    items: "",
+    character: "",
+    discount: "",
+    note: noteWithPin("", pin),
+    photos: [],
+    updated_at: new Date().toISOString().slice(0, 10),
+  });
 
   if (error) throw error;
-  return rowToStore(data as StoreRow);
 }
 
 export async function deleteStoreFromSupabase(id: string): Promise<void> {
-  const { error } = await supabase.from("stores").delete().eq("id", id);
-  if (error) throw error;
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase가 설정되지 않았습니다.");
+
+  const removed = await supabase.from("stores").delete().eq("id", id).select("id");
+  if (removed.error) throw removed.error;
+  if (removed.data && removed.data.length > 0) return;
+
+  const current = await supabase.from("stores").select("note").eq("id", id).maybeSingle();
+  if (current.error) throw current.error;
+  if (!current.data) return;
+
+  const updated = await supabase
+    .from("stores")
+    .update({
+      note: noteMarkedRemoved(current.data.note ?? ""),
+      updated_at: new Date().toISOString().slice(0, 10),
+    })
+    .eq("id", id);
+  if (updated.error) throw updated.error;
 }

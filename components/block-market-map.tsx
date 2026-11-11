@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { CategoryIcon } from "@/app/course/category-icon";
+import { CloseIcon } from "@/components/icons";
+import { MapScrollBar } from "@/components/map-scrollbar";
 import { storesIn, storeSummary, type Store } from "@/data/market";
 import { shops } from "@/lib/course";
 
@@ -13,6 +15,11 @@ type Props = {
   brief: Store | null;
   onBrief: (id: string | null) => void;
   onOpenDetail: (id: string) => void;
+  onDelete?: (store: Store) => void;
+  placeMode?: boolean;
+  pendingPin?: { x: number; y: number } | null;
+  onPlacePin?: (pin: { x: number; y: number }) => void;
+  dockBottom?: string;
 };
 
 const CROP_TOP = (58 / 430) * 100;
@@ -32,6 +39,14 @@ function clampAxis(offset: number, view: number, size: number) {
   return Math.min(0, Math.max(view - size, offset));
 }
 
+function fromVertical(turned: { x: number; y: number }) {
+  const span = CROP_BOTTOM - CROP_TOP;
+  return {
+    x: Math.round(turned.y * 10) / 10,
+    y: Math.round((CROP_BOTTOM - (turned.x / 100) * span) * 10) / 10,
+  };
+}
+
 function point(item: { x: number; y: number }) {
   const turned = toVertical(item);
   return {
@@ -40,7 +55,21 @@ function point(item: { x: number; y: number }) {
   };
 }
 
-export function BlockMarketMap({ stores, categories, category, onCategory, brief, onBrief, onOpenDetail }: Props) {
+export function BlockMarketMap({
+  stores,
+  categories,
+  category,
+  onCategory,
+  brief,
+  onBrief,
+  onOpenDetail,
+  onDelete,
+  placeMode = false,
+  pendingPin = null,
+  onPlacePin,
+  focusRequest = null,
+  dockBottom = "12px",
+}: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pending = useRef<{ id: string; at: number } | null>(null);
   const [view, setView] = useState({ width: 0, height: 0 });
@@ -126,6 +155,21 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
     setOffset(clampOffset({ x: drag.originX + dx, y: drag.originY + dy }, scale));
   }
 
+  function pinFromClient(clientX: number, clientY: number) {
+    const el = viewportRef.current;
+    if (!el || view.width <= 0) return null;
+    const rect = el.getBoundingClientRect();
+    const css = rect.width / el.clientWidth || 1;
+    const localX = (clientX - rect.left) / css;
+    const localY = (clientY - rect.top) / css;
+    const mapX = (localX - offset.x) / scale;
+    const mapY = (localY - offset.y) / scale;
+    const width = el.clientWidth;
+    const height = width * MAP_RATIO;
+    if (mapX < 0 || mapY < 0 || mapX > width || mapY > height) return null;
+    return fromVertical({ x: (mapX / width) * 100, y: (mapY / height) * 100 });
+  }
+
   function handleMarkerClick(id: string) {
     const now = performance.now();
     if (pending.current && pending.current.id === id && now - pending.current.at < 600) {
@@ -138,7 +182,8 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
   }
 
   return (
-    <div className="relative h-full min-h-0 bg-[#f7f6f3]" role="region" aria-label="신원시장 지도">
+    <div className="relative flex h-full min-h-0 bg-[#f7f6f3]" role="region" aria-label="신원시장 지도">
+      <div className="relative min-w-0 flex-1">
       <div
         ref={viewportRef}
         className="absolute inset-0 cursor-grab touch-none select-none overflow-hidden active:cursor-grabbing"
@@ -146,7 +191,14 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
         onPointerMove={onPointerMove}
         onPointerUp={(event) => {
           const drag = dragRef.current;
-          if (drag?.pointerId === event.pointerId && !drag.moved) onBrief(null);
+          if (drag?.pointerId === event.pointerId && !drag.moved) {
+            if (placeMode && onPlacePin) {
+              const pin = pinFromClient(event.clientX, event.clientY);
+              if (pin) onPlacePin(pin);
+            } else {
+              onBrief(null);
+            }
+          }
           if (drag?.pointerId === event.pointerId) dragRef.current = null;
         }}
         onPointerCancel={() => {
@@ -176,6 +228,12 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
               <CategoryIcon category="수변" className="size-4" />
             </span>
           ))}
+          {pendingPin ? (
+            <span
+              className="pointer-events-none absolute z-20 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#9b2335] shadow-[0_0_0_4px_rgba(155,35,53,0.28)]"
+              style={{ ...point(pendingPin), scale: 1 / scale }}
+            />
+          ) : null}
           {visible.map((item) => {
             const selected = brief?.id === item.id;
             return (
@@ -222,7 +280,7 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
         })}
       </div>
 
-      <div className="absolute right-3 bottom-3 z-30 flex flex-col gap-2">
+      <div className="absolute right-3 z-30 flex flex-col gap-2" style={{ bottom: dockBottom }}>
         <button
           type="button"
           className="flex size-11 items-center justify-center rounded-xl bg-white/95 text-2xl font-bold text-[#234237] shadow-[0_2px_10px_rgba(28,25,21,0.12)]"
@@ -252,15 +310,43 @@ export function BlockMarketMap({ stores, categories, category, onCategory, brief
       </div>
 
       {brief ? (
-        <div className="absolute inset-x-3 bottom-3 z-30 rounded-2xl bg-white/96 p-3 shadow-[0_16px_40px_rgba(42,33,24,0.18)] ring-1 ring-[#2a2118]/10">
+        <div
+          className="absolute inset-x-3 z-30 rounded-2xl bg-white/96 p-3 pr-9 shadow-[0_16px_40px_rgba(42,33,24,0.18)] ring-1 ring-[#2a2118]/10"
+          style={{ bottom: dockBottom }}
+        >
+          <button
+            type="button"
+            onClick={() => onBrief(null)}
+            aria-label="가게 소개 닫기"
+            className="absolute top-2 right-2 grid size-6 place-items-center text-[#8a7568]"
+          >
+            <CloseIcon className="size-3.5" />
+          </button>
           <p className="text-[10px] font-semibold tracking-wide text-[#9b2335]">{brief.category}</p>
           <p className="font-display mt-0.5 text-[17px] leading-6 text-[#2a2118]">{brief.name}</p>
           <p className="mt-1 text-xs leading-5 text-[#5c5146]">{storeSummary(brief)}</p>
-          <button type="button" onClick={() => onOpenDetail(brief.id)} className="mt-2 text-xs font-semibold text-[#9b2335]">
-            가게 정보 보기
-          </button>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button type="button" onClick={() => onOpenDetail(brief.id)} className="text-xs font-semibold text-[#9b2335]">
+              가게 정보 보기
+            </button>
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={() => onDelete(brief)}
+                className="h-8 shrink-0 rounded-xl bg-[#f6e6e2] px-3 text-xs font-bold text-[#a6452f]"
+              >
+                삭제
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
+      </div>
+      <MapScrollBar
+        height={Math.max(view.height, view.width * MAP_RATIO * scale)}
+        scrollTop={Math.max(0, -offset.y)}
+        onScroll={(top) => setOffset((off) => clampOffset({ x: off.x, y: -top }, scale))}
+      />
     </div>
   );
 }

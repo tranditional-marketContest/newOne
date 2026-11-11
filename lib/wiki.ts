@@ -1,4 +1,5 @@
 ﻿import { shops } from "@/lib/course";
+import { isRemovedStore, visibleNote } from "@/lib/store-pin";
 
 export type WikiStore = {
   id: string;
@@ -76,7 +77,13 @@ export async function loadWikiStores(): Promise<WikiStore[]> {
     reviewsByStore.set(review.store_id, list);
   }
 
-  return stores.map((store) => ({ ...store, reviews: reviewsByStore.get(store.id) ?? [] }));
+  return stores
+    .filter((store) => !isRemovedStore(store.note))
+    .map((store) => ({
+      ...store,
+      note: visibleNote(store.note),
+      reviews: reviewsByStore.get(store.id) ?? [],
+    }));
 }
 
 export function wikiCatalog(stores: WikiStore[]) {

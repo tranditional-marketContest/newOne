@@ -6,6 +6,7 @@ import { categoryFilters, findStore, type Store } from "@/data/market";
 import { BlockMarketMap } from "@/components/block-market-map";
 import { UserIcon } from "@/components/icons";
 import { RadialMenu } from "@/components/radial-menu";
+import { ScreenTitle } from "@/components/screen-title";
 import { EventSheet, StoreDetail } from "@/components/sheets";
 import type { EventBanner } from "@/lib/event-banner";
 import { loadStoresForMap } from "@/lib/market-stores";
@@ -71,29 +72,33 @@ export function HomeScreen({ banner, stores }: { banner: EventBanner; stores: St
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-center gap-2 px-4 pt-[max(0.85rem,env(safe-area-inset-top))]">
-        <div className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-white shadow-sm ring-1 ring-[#2a2118]/8">
-          <span className="font-display grid h-7 w-7 place-items-center rounded-full bg-[#9b2335] text-[13px] text-white">
+      <ScreenTitle
+        title="new-one"
+        large
+        leading={<span className="h-10 w-10" />}
+        mark={
+          <span className="font-display grid h-[3.5rem] w-[3.5rem] place-items-center rounded-full bg-[#9b2335] text-[2rem] font-normal text-white">
             新
           </span>
-          <span className="truncate text-[1.35rem] font-semibold tracking-tight text-[#2a2118]">new-one</span>
-        </div>
-        <Link
-          href="/mypage"
-          aria-label={userName ? `${userName} 프로필` : "로그인 및 프로필"}
-          onClick={() => {
-            setEventOpen(false);
-            setBriefId(null);
-          }}
-          className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-[#9b2335] shadow-sm ring-1 ring-[#2a2118]/10"
-        >
-          {userName ? (
-            <span className="font-display text-lg leading-none">{userName.slice(0, 1)}</span>
-          ) : (
-            <UserIcon className="h-6 w-6" />
-          )}
-        </Link>
-      </header>
+        }
+        right={
+          <Link
+            href="/mypage"
+            aria-label={userName ? `${userName} 프로필` : "로그인 및 프로필"}
+            onClick={() => {
+              setEventOpen(false);
+              setBriefId(null);
+            }}
+            className="relative flex h-10 w-10 items-center justify-center rounded-full bg-black/10 text-lg text-hanji-main transition hover:bg-black/15"
+          >
+            {userName ? (
+              <span className="font-[family-name:var(--font-display)] leading-none">{userName.slice(0, 1)}</span>
+            ) : (
+              <UserIcon className="h-6 w-6" />
+            )}
+          </Link>
+        }
+      />
 
       <button
         type="button"

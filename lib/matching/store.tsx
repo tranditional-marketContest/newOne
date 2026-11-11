@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CATEGORIES, CATEGORY_EMOJI } from "./categories";
+import { CATEGORIES, CATEGORY_EMOJI, migrateCategory } from "./categories";
 import { createFreshSeedMessages, createFreshSeedPosts } from "./seed";
 import {
   CURRENT_USER,
@@ -134,6 +134,7 @@ function normalizePost(post: MatchingPost): MatchingPost {
   };
   return {
     ...rest,
+    category: migrateCategory(String(rest.category), rest.id),
     participantIds:
       rest.participantIds?.length > 0
         ? rest.participantIds
@@ -236,7 +237,9 @@ function loadState(): PersistedState {
       posts,
       messages: seeded.messages,
       alerts: {
-        categories: parsed.alerts?.categories ?? [],
+        categories: (parsed.alerts?.categories ?? []).map((category) =>
+          migrateCategory(String(category)),
+        ),
         keywords: parsed.alerts?.keywords ?? [],
       },
       unreadChatPostIds: [
