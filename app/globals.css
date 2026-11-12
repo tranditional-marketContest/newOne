@@ -51,6 +51,34 @@ body {
   font-family: var(--font-sans);
 }
 
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+a[class*="rounded-full"],
+a[class*="rounded-xl"],
+a[class*="rounded-2xl"] {
+  transition-property: transform, scale, translate, background-color, border-color, color, opacity, box-shadow, filter;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+button:not(:disabled):not(.fab-pulse):active,
+[role="button"]:not([aria-disabled="true"]):active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active,
+input[type="reset"]:not(:disabled):active,
+a[class*="rounded-full"]:active,
+a[class*="rounded-xl"]:active,
+a[class*="rounded-2xl"]:active {
+  transform: scale(0.94);
+}
+
+.fab-pulse:not(:disabled):active {
+  scale: 0.94;
+}
+
 .map-scrollbar {
   scrollbar-color: #8a7568 #efe8dc;
   scrollbar-width: auto;
@@ -218,9 +246,32 @@ body {
   .voucher-enter,
   .fade-up,
   .fab-pulse,
-  .waiting-bubble {
+  .waiting-bubble,
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  a[class*="rounded-full"],
+  a[class*="rounded-xl"],
+  a[class*="rounded-2xl"] {
     animation: none;
     transition: none;
+  }
+
+  button:active,
+  [role="button"]:active,
+  input[type="button"]:active,
+  input[type="submit"]:active,
+  input[type="reset"]:active,
+  a[class*="rounded-full"]:active,
+  a[class*="rounded-xl"]:active,
+  a[class*="rounded-2xl"]:active {
+    transform: none;
+  }
+
+  .fab-pulse:active {
+    scale: none;
   }
 }
 

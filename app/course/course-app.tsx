@@ -1,24 +1,23 @@
 ﻿"use client";
 
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
   type FormEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
-import { MapScrollBar } from "@/components/map-scrollbar";
 import { ScreenTitle } from "@/components/screen-title";
 import {
   buildGeneratedCourse,
   buildQuickCourse,
+  places,
   quickCourses,
-  shops,
   type CourseResult,
 } from "@/lib/course";
 import { roadPolyline } from "@/lib/block-road";
-import { loadMapPins, type MapPin } from "@/lib/map-pins";
+import { loadLiveStores } from "@/lib/market-stores";
+import { getSupabase } from "@/lib/supabase/client";
+import type { Store } from "@/data/market";
 import { CategoryIcon } from "./category-icon";
 
 type Phase = "home" | "quick" | "ask" | "result";
@@ -31,11 +30,6 @@ const MAX_SCALE = 4;
 
 function toVertical(item: { x: number; y: number }) {
   return { x: ((CROP_BOTTOM - item.y) / (CROP_BOTTOM - CROP_TOP)) * 100, y: item.x };
-}
-
-function clampAxis(offset: number, view: number, size: number) {
-  if (size <= view) return (view - size) / 2;
-  return Math.min(0, Math.max(view - size, offset));
 }
 
 function point(item: { x: number; y: number }) {
@@ -58,9 +52,6 @@ function verticalLine(line: string) {
     .join(" ");
 }
 
-const categoryByName = new Map(shops.map((item) => [item.name, item.category]));
-const allPlaces = shops.filter((item) => item.kind === "place");
-
 async function postChat(mode: "chat" | "generate", messages: ChatMessage[]) {
   const response = await fetch("/api/course-chat", {
     method: "POST",
@@ -81,39 +72,15 @@ export function CourseApp() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState("");
   const [chatError, setChatError] = useState("");
-  const [pins, setPins] = useState<MapPin[]>([]);
+  const [liveStores, setLiveStores] = useState<Store[]>([]);
+  const [storesReady, setStoresReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const chatPanelRef = useRef<HTMLElement>(null);
+  const chatListRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(
-    null,
-  );
 
   const minScale = view.width > 0 ? Math.min(1, view.height / (view.width * MAP_RATIO)) : 1;
-
-  const clampOffset = useCallback(
-    (next: { x: number; y: number }, nextScale: number) => ({
-      x: clampAxis(next.x, view.width, view.width * nextScale),
-      y: clampAxis(next.y, view.height, view.width * MAP_RATIO * nextScale),
-    }),
-    [view],
-  );
-
-  const zoomAt = useCallback(
-    (clientX: number, clientY: number, factor: number) => {
-      const el = viewportRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const cx = clientX - rect.left;
-      const cy = clientY - rect.top;
-      const next = Math.min(MAX_SCALE, Math.max(minScale, scale * factor));
-      const ratio = next / scale;
-      setScale(next);
-      setOffset((off) => clampOffset({ x: cx - (cx - off.x) * ratio, y: cy - (cy - off.y) * ratio }, next));
-    },
-    [clampOffset, minScale, scale],
-  );
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -123,64 +90,53 @@ export function CourseApp() {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    setOffset((off) => clampOffset(off, scale));
-  }, [clampOffset, scale]);
-
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.12 : 1 / 1.12);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomAt]);
-
-  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: offset.x,
-      originY: offset.y,
-    };
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Capture can fail outside a real pointer gesture; dragging still works while the pointer stays on the map.
-    }
-  }
-
-  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    setOffset(
-      clampOffset(
-        { x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY },
-        scale,
-      ),
-    );
-  }
+  }, [phase]);
 
   function zoomBy(factor: number) {
     const el = viewportRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    const next = Math.min(MAX_SCALE, Math.max(minScale, scale * factor));
+    if (next === scale) return;
+    const ratio = next / scale;
+    const centerX = el.scrollLeft + el.clientWidth / 2;
+    const centerY = el.scrollTop + el.clientHeight / 2;
+    setScale(next);
+    window.requestAnimationFrame(() => {
+      el.scrollLeft = centerX * ratio - el.clientWidth / 2;
+      el.scrollTop = centerY * ratio - el.clientHeight / 2;
+    });
   }
 
   useEffect(() => {
-    let live = true;
-    loadMapPins().then((rows) => {
-      if (live) setPins(rows);
+    if (phase !== "ask") return;
+    const frame = window.requestAnimationFrame(() => {
+      const list = chatListRef.current;
+      const panel = chatPanelRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      if (panel) panel.scrollTop = panel.scrollHeight;
     });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, chatError, phase]);
+
+  useEffect(() => {
+    let live = true;
+    async function refresh() {
+      const rows = await loadLiveStores();
+      if (!live) return;
+      setLiveStores(rows);
+      setStoresReady(true);
+    }
+    void refresh();
+    const supabase = getSupabase();
+    const channel = supabase
+      ?.channel("course-store-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "stores" }, () => {
+        void refresh();
+      })
+      .subscribe();
     return () => {
       live = false;
+      if (channel) void supabase?.removeChannel(channel);
     };
   }, []);
 
@@ -238,7 +194,7 @@ export function CourseApp() {
     setChatError("");
     try {
       const data = await postChat("generate", next);
-      setCourse(buildGeneratedCourse(data.title ?? "", data.entranceId ?? "n1", data.shopIds ?? []));
+      setCourse(buildGeneratedCourse(data.title ?? "", data.entranceId ?? "n1", data.shopIds ?? [], liveStores));
       setPhase("result");
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "코스를 만들지 못했습니다.");
@@ -248,43 +204,42 @@ export function CourseApp() {
   const showAllDots = phase !== "result";
   const route = course && phase === "result" ? course.shops : [];
   const routeLine = route.length > 1 ? verticalLine(roadPolyline(route)) : "";
-  const shopPins: MapPin[] =
-    pins.length > 0
-      ? pins
-      : shops
-          .filter((item) => item.kind !== "place")
-          .map((item) => ({ id: item.id, name: item.name, x: item.x, y: item.y }));
+  const shopPins = liveStores.map((store) => ({
+    id: store.id,
+    name: store.name,
+    x: store.x,
+    y: store.y,
+    category: store.category,
+  }));
   const resultPins =
     course?.shops
       .filter((item) => item.kind !== "place")
-      .map((item) => shopPins.find((pin) => pin.name === item.name) ?? { id: item.id, name: item.name, x: item.x, y: item.y }) ??
-    [];
-  const greenPins = showAllDots ? allPlaces : (course?.shops.filter((item) => item.kind === "place") ?? []);
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        x: item.x,
+        y: item.y,
+        category: item.category,
+      })) ?? [];
+  const greenPins = showAllDots ? places : (course?.shops.filter((item) => item.kind === "place") ?? []);
 
   return (
     <main className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f7f6f3] text-[#1c1915]">
       <ScreenTitle title="코스 추천" onBack={phase === "home" ? undefined : goHome} />
+      {phase === "ask" ? null : (
       <div className="relative flex min-h-0 w-full flex-1 overflow-hidden">
         <div className="relative min-w-0 flex-1">
         <div
           ref={viewportRef}
-          className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
+          className="absolute inset-0 overflow-auto"
           role="application"
           aria-label="지도"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={(event) => {
-            if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-          }}
-          onPointerCancel={() => {
-            dragRef.current = null;
-          }}
         >
         <div
-          className="absolute top-0 left-0 w-full origin-top-left will-change-transform"
+          className="relative"
           style={{
+            width: `${scale * 100}%`,
             aspectRatio: `1 / ${MAP_RATIO}`,
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           }}
         >
           <img
@@ -328,7 +283,7 @@ export function CourseApp() {
               className="absolute z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#e23a2b] text-white shadow-[0_0_0_3px_rgba(226,58,43,0.22)]"
               style={{ ...point(item), scale: 1 / scale }}
             >
-              <CategoryIcon category={categoryByName.get(item.name) ?? ""} className="size-4" />
+              <CategoryIcon category={item.category} className="size-4" />
             </span>
           ))}
         </div>
@@ -353,14 +308,17 @@ export function CourseApp() {
           </button>
         </div>
         </div>
-        <MapScrollBar
-          height={Math.max(view.height, view.width * MAP_RATIO * scale)}
-          scrollTop={Math.max(0, -offset.y)}
-          onScroll={(top) => setOffset((off) => clampOffset({ x: off.x, y: -top }, scale))}
-        />
       </div>
+      )}
 
-      <aside className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-y-auto">
+      <aside
+        ref={chatPanelRef}
+        className={
+          phase === "ask"
+            ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+            : "flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-y-auto"
+        }
+      >
       {phase === "result" && course ? (
         <section className="flex flex-col gap-3 px-4 pt-4 pb-8">
           <p className="text-lg font-semibold text-[#57534e]">&lt; {course.modeLabel} &gt;</p>
@@ -371,7 +329,10 @@ export function CourseApp() {
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#2563eb] text-base font-bold text-[#2563eb]">
                   {index + 1}
                 </span>
-                <span>{step.text}</span>
+                <span>
+                  {step.text}
+                  {step.detail ? <span className="mt-0.5 block text-sm leading-5 text-[#57534e]">{step.detail}</span> : null}
+                </span>
               </li>
             ))}
           </ol>
@@ -379,9 +340,9 @@ export function CourseApp() {
       ) : null}
 
       {phase === "ask" ? (
-        <section className="flex min-h-full flex-col gap-3 px-4 py-4">
+        <section className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4">
           <p className="w-fit rounded-full bg-[#f6e27a] px-3 py-1 text-base font-bold">AI 맞춤 코스</p>
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+          <div ref={chatListRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
             {messages.map((message, index) => (
               <p
                 key={`${message.role}-${index}`}
@@ -437,13 +398,23 @@ export function CourseApp() {
 
       {phase === "quick" ? (
         <div className="my-auto grid w-full grid-cols-2 gap-3 px-3 py-4">
+          {chatError ? <p className="col-span-2 text-base text-[#9a3412]">{chatError}</p> : null}
+          {!storesReady ? <p className="col-span-2 text-base text-[#57534e]">가게 정보를 불러오는 중…</p> : null}
+          {storesReady && liveStores.length === 0 ? (
+            <p className="col-span-2 text-base text-[#57534e]">등록된 가게가 없어 코스를 만들 수 없습니다.</p>
+          ) : null}
           {quickCourses.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => {
-                setCourse(buildQuickCourse(item.id));
-                setPhase("result");
+                try {
+                  setCourse(buildQuickCourse(item.id, liveStores));
+                  setChatError("");
+                  setPhase("result");
+                } catch (error) {
+                  setChatError(error instanceof Error ? error.message : "코스를 만들지 못했습니다.");
+                }
               }}
               className="flex min-h-20 items-center justify-center rounded-xl bg-white px-3 py-2 text-center text-lg leading-6 font-bold shadow"
             >

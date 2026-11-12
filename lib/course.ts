@@ -1,4 +1,5 @@
-﻿import { orderByOpenRoad, roadHeading, walkCourse } from "./block-road";
+﻿import type { Store } from "@/data/market";
+import { orderByOpenRoad, roadHeading, walkCourse } from "./block-road";
 
 export type Mood = "데이트" | "구경" | "맛집" | "산책";
 export type Budget = "알뜰" | "보통" | "푸짐";
@@ -29,6 +30,7 @@ export type Entrance = {
 
 export type Step = {
   text: string;
+  detail?: string;
 };
 
 export type CourseResult = {
@@ -70,10 +72,7 @@ function shop(
   return { id, name, category, stars, ...spot(t, lane), note, moods, budget, indoor, crowd };
 }
 
-const GREEN_Y = 31.9;
-const FAR_GREEN_Y = 18.1;
-
-function place(id: string, name: string, x: number, note: string, crowd: Shop["crowd"], y = GREEN_Y): Shop {
+function place(id: string, name: string, x: number, y: number): Shop {
   return {
     id,
     name,
@@ -81,11 +80,11 @@ function place(id: string, name: string, x: number, note: string, crowd: Shop["c
     stars: 3,
     x,
     y,
-    note,
+    note: "",
     moods: ["데이트", "구경", "산책"],
     budget: ["알뜰", "보통", "푸짐"],
     indoor: false,
-    crowd,
+    crowd: "보통",
     kind: "place",
   };
 }
@@ -131,12 +130,11 @@ export const shops: Shop[] = [
   shop("china", "중국식품", "식료품", 0, 0.36, 1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰", "보통"], true, "한산"),
   shop("jeongjong", "정종중국식품", "식료품", 0, 0.55, -1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰"], true, "한산"),
   shop("oil", "신림기름집", "식료품", 0, 0.92, 1, "유통기한이 길어 코스에 넣지 않습니다.", ["구경"], ["알뜰", "보통"], true, "한산"),
-  place("stream-fountain", "별빛내린천 분수", 22.5, "천변 분수", "한산"),
-  place("stone-path", "돌길", 32.2, "천변 따라 걷는 돌길", "한산", FAR_GREEN_Y),
-  place("music-fountain", "음악분수", 41, "정오, 오후 7시, 오후 8시", "보통"),
-  place("mural", "벽화", 50.8, "천변 벽화 거리", "한산"),
-  place("footbridge", "육교", 63.5, "별빛내린천을 건너는 다리", "한산", FAR_GREEN_Y),
-  place("flower-path", "꽃길", 76.2, "계절 꽃이 피는 산책길", "한산"),
+  place("riverside-terrace", "수변테라스", 53.3, 17.9),
+  place("acupressure-path", "지압보도", 42.5, 18.0),
+  place("kids-sled", "어린이 썰매장", 94.0, 32.7),
+  place("media-art", "미디어아트&별빛버스킹존", 34.3, 18.1),
+  place("dorim-pool", "도림천 물놀이장", 62.3, 17.9),
 ];
 
 export const MIN_GREEN_STOPS = 2;
@@ -181,54 +179,75 @@ for (const shop of shops) {
   }
 }
 
-const quickCourseDefs = [
-  {
-    id: "date",
-    title: "연인과의 데이트",
-    options: [
-      { entranceId: "n1", shopIds: ["bethlehem", "fruit", "tangsuyuk", "jeon"], placeIds: ["music-fountain"] },
-      { entranceId: "n2", shopIds: ["tteok-cart", "sunok", "hotteok", "song"], placeIds: ["music-fountain", "stream-fountain"] },
-      { entranceId: "n8", shopIds: ["sillim-tteok", "goeun", "oddeok", "flame"], placeIds: [] },
-      { entranceId: "n3", shopIds: ["bethlehem", "mom", "tangsuyuk", "ajeossi"], placeIds: ["footbridge", "music-fountain"] },
-      { entranceId: "n4", shopIds: ["dongnimmun", "younggwang", "jeon", "song"], placeIds: ["stream-fountain"] },
-    ],
-  },
-  {
-    id: "tour",
-    title: "관광필수코스",
-    options: [
-      { entranceId: "n1", shopIds: ["sillim-tteok", "mom", "younggwang", "geonwoo"], placeIds: ["stream-fountain", "music-fountain", "footbridge"] },
-      { entranceId: "n2", shopIds: ["dongnimmun", "jinmi", "fruit", "mokpo"], placeIds: ["footbridge", "stream-fountain"] },
-      { entranceId: "n5", shopIds: ["bethlehem", "jindo", "goeun", "geonwoo"], placeIds: [] },
-      { entranceId: "n6", shopIds: ["tteok-cart", "mom", "veggie", "sundae-shop"], placeIds: ["music-fountain"] },
-      { entranceId: "n8", shopIds: ["sillim-tteok", "sunok", "younggwang", "mokpo"], placeIds: ["footbridge"] },
-    ],
-  },
-  {
-    id: "food",
-    title: "맛집탐방코스",
-    options: [
-      { entranceId: "n5", shopIds: ["sundae-guk", "seongam", "tangsuyuk", "song"], placeIds: [] },
-      { entranceId: "n6", shopIds: ["jokbal", "geonwoo", "oddeok", "ajeossi"], placeIds: [] },
-      { entranceId: "n4", shopIds: ["jangteo", "mokpo", "hotteok", "song"], placeIds: ["music-fountain"] },
-      { entranceId: "n7", shopIds: ["jeon", "seongam", "tangsuyuk", "mom"], placeIds: [] },
-      { entranceId: "n3", shopIds: ["sundae-shop", "geonwoo", "oddeok", "sunok"], placeIds: ["stream-fountain"] },
-    ],
-  },
-  {
-    id: "stroll",
-    title: "마실코스",
-    options: [
-      { entranceId: "n1", shopIds: ["fruit", "tteok-cart", "oddeok", "jeon"], placeIds: ["stream-fountain", "footbridge"] },
-      { entranceId: "n8", shopIds: ["goeun", "bethlehem", "hotteok"], placeIds: ["music-fountain"] },
-      { entranceId: "n2", shopIds: ["younggwang", "dongnimmun", "oddeok", "jeon"], placeIds: ["stream-fountain", "music-fountain", "footbridge"] },
-      { entranceId: "n3", shopIds: ["veggie", "sillim-tteok", "tangsuyuk"], placeIds: [] },
-      { entranceId: "n6", shopIds: ["fruit", "bethlehem", "oddeok", "ajeossi"], placeIds: ["footbridge", "music-fountain"] },
-    ],
-  },
+export const places = shops.filter((item) => item.kind === "place");
+
+const quickThemes: { id: string; title: string; categories: string[] }[] = [
+  { id: "date", title: "연인과의 데이트", categories: ["간식", "식당"] },
+  { id: "tour", title: "관광필수코스", categories: ["식당", "간식", "식자재", "생활용품", "의류", "기타"] },
+  { id: "food", title: "맛집탐방코스", categories: ["식당", "간식"] },
+  { id: "stroll", title: "마실코스", categories: ["간식", "식자재", "기타"] },
 ];
 
-export const quickCourses = quickCourseDefs.map(({ id, title }) => ({ id, title }));
+export const quickCourses = quickThemes.map(({ id, title }) => ({ id, title }));
+
+function shuffle<T>(items: T[]) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swap]] = [next[swap], next[index]];
+  }
+  return next;
+}
+
+export function storeToCourseShop(store: Store): Shop {
+  const detail =
+    [store.character, store.items, store.hours, store.discount, store.note]
+      .map((value) => value.trim())
+      .find(Boolean) ?? "";
+  return {
+    id: store.id,
+    name: store.name,
+    category: store.category,
+    stars: 1,
+    x: store.x,
+    y: store.y,
+    note: detail,
+    moods: [],
+    budget: ["알뜰", "보통", "푸짐"],
+    indoor: false,
+    crowd: "보통",
+  };
+}
+
+function pickLiveStores(stores: Store[], categories: string[]) {
+  const preferred = stores.filter((store) => categories.includes(store.category));
+  const source = preferred.length > 0 ? preferred : stores;
+  const shuffled = shuffle(source);
+  const picked: Store[] = [];
+  const used = new Set<string>();
+  for (const store of shuffled) {
+    if (used.has(store.category)) continue;
+    picked.push(store);
+    used.add(store.category);
+    if (picked.length === 4) return picked;
+  }
+  for (const store of shuffled) {
+    if (picked.length === 4) break;
+    if (picked.some((item) => item.id === store.id)) continue;
+    picked.push(store);
+  }
+  return picked;
+}
+
+function nearestEntrance(picked: Shop[]) {
+  const center = {
+    x: picked.reduce((sum, item) => sum + item.x, 0) / picked.length,
+    y: picked.reduce((sum, item) => sum + item.y, 0) / picked.length,
+  };
+  return entrances.reduce((closest, entrance) =>
+    distance(entrance, center) < distance(closest, center) ? entrance : closest,
+  );
+}
 
 function withPlaces(entrance: Entrance, picked: Shop[], placeIds: string[]) {
   const seen = new Set(picked.map((item) => item.id));
@@ -242,12 +261,6 @@ function withPlaces(entrance: Entrance, picked: Shop[], placeIds: string[]) {
     .sort((a, b) => nearness(a) - nearness(b));
   while (places.length < MIN_GREEN_STOPS && spare.length > 0) places.push(spare.shift()!);
   return orderFromEntrance(entrance, [...picked, ...places]);
-}
-
-function shopById(id: string) {
-  const found = shops.find((item) => item.id === id);
-  if (!found) throw new Error(`없는 상점입니다: ${id}`);
-  return found;
 }
 
 function entranceById(id: string) {
@@ -285,7 +298,10 @@ export function buildSteps(entrance: Entrance, ordered: Shop[]): Step[] {
     if (index === 0) {
       steps.push({ text: `${entrance.name}로 입장 후 ${turn}` });
     }
-    steps.push({ text: turn === "직진" ? `직진하여 ${shop.name}` : `${turn} 후 ${shop.name}` });
+    steps.push({
+      text: turn === "직진" ? `직진하여 ${shop.name}` : `${turn} 후 ${shop.name}`,
+      detail: shop.kind === "place" ? undefined : shop.note || undefined,
+    });
     const arrival = leg?.arrive ?? roadHeading(cursor, shop, true);
     prevX = arrival ? shop.x - arrival.x : cursor.x;
     prevY = arrival ? shop.y - arrival.y : cursor.y;
@@ -295,12 +311,13 @@ export function buildSteps(entrance: Entrance, ordered: Shop[]): Step[] {
   return steps;
 }
 
-export function buildQuickCourse(id: string): CourseResult {
-  const course = quickCourseDefs.find((item) => item.id === id);
+export function buildQuickCourse(id: string, stores: Store[]): CourseResult {
+  const course = quickThemes.find((item) => item.id === id);
   if (!course) throw new Error(`없는 코스입니다: ${id}`);
-  const option = course.options[Math.floor(Math.random() * course.options.length)];
-  const entrance = entranceById(option.entranceId);
-  const ordered = withPlaces(entrance, option.shopIds.map(shopById), option.placeIds);
+  const picked = pickLiveStores(stores, course.categories).map(storeToCourseShop);
+  if (picked.length === 0) throw new Error("등록된 가게가 없습니다.");
+  const entrance = nearestEntrance(picked);
+  const ordered = withPlaces(entrance, picked, []);
   return {
     modeLabel: "빠른 코스 추천",
     title: course.title,
@@ -352,34 +369,28 @@ function orderFromEntrance(entrance: Entrance, picked: Shop[]) {
   return pinEnds(orderByOpenRoad(entrance, picked));
 }
 
-export function buildGeneratedCourse(title: string, entranceId: string, shopIds: string[]): CourseResult {
+export function buildGeneratedCourse(
+  title: string,
+  entranceId: string,
+  shopIds: string[],
+  stores: Store[],
+): CourseResult {
   const entrance = entrances.find((item) => item.id === entranceId) ?? entrances[0];
   const picked: Shop[] = [];
   const pickedPlaces: Shop[] = [];
-  const seenCategories = new Set<string>();
 
   for (const id of shopIds) {
-    const shopItem = shops.find((item) => item.id === id);
-    if (!shopItem || shopItem.stars === 0) continue;
-    if (shopItem.kind === "place") {
-      if (!pickedPlaces.some((item) => item.id === shopItem.id) && pickedPlaces.length < 2) pickedPlaces.push(shopItem);
+    const place = places.find((item) => item.id === id);
+    if (place) {
+      if (!pickedPlaces.some((item) => item.id === place.id) && pickedPlaces.length < 2) pickedPlaces.push(place);
       continue;
     }
-    if (picked.length >= 4 || seenCategories.has(shopItem.category)) continue;
-    picked.push(shopItem);
-    seenCategories.add(shopItem.category);
+    const store = stores.find((item) => item.id === id);
+    if (!store || picked.length >= 4 || picked.some((item) => item.id === store.id)) continue;
+    picked.push(storeToCourseShop(store));
   }
 
-  if (picked.length < 3) {
-    const fillers = shops
-      .filter((item) => item.kind !== "place" && item.stars > 0 && !seenCategories.has(item.category))
-      .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name, "ko"));
-    for (const shopItem of fillers) {
-      picked.push(shopItem);
-      seenCategories.add(shopItem.category);
-      if (picked.length === 3) break;
-    }
-  }
+  if (picked.length === 0) throw new Error("등록된 가게 중에서 코스를 만들지 못했습니다.");
 
   const ordered = withPlaces(entrance, picked, pickedPlaces.map((item) => item.id));
   return {
@@ -413,11 +424,11 @@ export function buildCustomCourse(answers: Answers): CourseResult {
     answers.weather === "비"
       ? []
       : answers.mood === "산책"
-        ? ["stream-fountain", "footbridge"]
+        ? ["media-art", "dorim-pool"]
         : answers.mood === "데이트"
-          ? ["music-fountain"]
+          ? ["acupressure-path"]
           : answers.mood === "구경"
-            ? ["stream-fountain"]
+            ? ["media-art"]
             : [];
   const entrance = chooseEntrance(picked, answers);
   const ordered = withPlaces(entrance, picked, placeIds);

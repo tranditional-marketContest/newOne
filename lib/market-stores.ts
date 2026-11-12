@@ -137,6 +137,32 @@ type RemoteStore = {
   photos: string[] | null;
 };
 
+/** 매니저가 등록·삭제한 가게. 핀을 다시 쓰거나 시드 목록으로 되돌리지 않는다. */
+export async function loadLiveStores(): Promise<Store[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("stores")
+    .select("id,name,category,hours,items,character,discount,note,photos")
+    .order("name", { ascending: true })
+    .order("id", { ascending: true });
+  if (error || !data || data.length === 0) return [];
+
+  const rows = (data as RemoteStore[]).map((record) => ({
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    hours: record.hours?.trim() ?? "",
+    items: record.items?.trim() ?? "",
+    character: record.character?.trim() ?? "",
+    discount: record.discount?.trim() ?? "",
+    note: record.note?.trim() ?? "",
+    photos: (record.photos ?? []).filter((photo) => photo.startsWith("https://")),
+  }));
+  return placeOnBlockMap(rows);
+}
+
 export async function loadStoresForMap(): Promise<Store[]> {
   const supabase = getSupabase();
   if (!supabase) return seedStoresOnMap();

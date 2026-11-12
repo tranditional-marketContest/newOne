@@ -1,4 +1,4 @@
-﻿import { shops } from "@/lib/course";
+﻿import { places } from "@/lib/course";
 import { isRemovedStore, visibleNote } from "@/lib/store-pin";
 
 export type WikiStore = {
@@ -45,15 +45,6 @@ async function supabaseGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function compact(name: string) {
-  return name.replace(/\s+/g, "");
-}
-
-export function localShopIdForStoreName(name: string) {
-  const key = compact(name);
-  return shops.find((item) => item.kind !== "place" && compact(item.name) === key)?.id ?? null;
-}
-
 function clip(text: string, max: number) {
   const value = text.replace(/\s+/g, " ").trim();
   if (value.length <= max) return value;
@@ -88,21 +79,13 @@ export async function loadWikiStores(): Promise<WikiStore[]> {
 
 export function wikiCatalog(stores: WikiStore[]) {
   return stores
-    .filter((store) => {
-      const localId = localShopIdForStoreName(store.name);
-      const local = shops.find((item) => item.id === localId);
-      return local && local.stars > 0;
-    })
     .map((store) => {
-      const localId = localShopIdForStoreName(store.name);
-      const local = shops.find((item) => item.id === localId);
       const facts = [
         store.hours && `영업 ${clip(store.hours, 40)}`,
         store.items && `품목 ${clip(store.items, 40)}`,
         store.character && `소개 ${clip(store.character, 120)}`,
         store.discount && `할인 ${clip(store.discount, 40)}`,
         store.note && `비고 ${clip(store.note, 40)}`,
-        local?.crowd === "혼잡" ? "줄이 길 수 있음" : "",
         ...store.reviews.map((review) => {
           const extra = [review.purchased_items, review.purchase_hour].filter(Boolean).join(" ");
           return `후기 ${clip(`${review.text}${extra ? ` (${extra})` : ""}`, 100)}`;
@@ -115,18 +98,13 @@ export function wikiCatalog(stores: WikiStore[]) {
 }
 
 export function wikiIdsToLocalIds(ids: string[], stores: WikiStore[]) {
-  const localIds: string[] = [];
+  const kept: string[] = [];
   for (const id of ids) {
-    const place = shops.find((item) => item.id === id && item.kind === "place");
-    if (place) {
-      localIds.push(place.id);
+    if (places.some((item) => item.id === id)) {
+      kept.push(id);
       continue;
     }
-    const store = stores.find((item) => item.id === id) ?? stores.find((item) => compact(item.name) === compact(id));
-    const localId = store ? localShopIdForStoreName(store.name) : shops.find((item) => item.id === id)?.id;
-    const local = shops.find((item) => item.id === localId);
-    if (!local || local.stars === 0 || local.kind === "place") continue;
-    localIds.push(local.id);
+    if (stores.some((item) => item.id === id)) kept.push(id);
   }
-  return localIds;
+  return kept;
 }
