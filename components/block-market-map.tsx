@@ -67,7 +67,6 @@ export function BlockMarketMap({
   placeMode = false,
   pendingPin = null,
   onPlacePin,
-  focusRequest = null,
   dockBottom = "12px",
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);

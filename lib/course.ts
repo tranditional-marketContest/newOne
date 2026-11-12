@@ -253,7 +253,7 @@ function withPlaces(entrance: Entrance, picked: Shop[], placeIds: string[]) {
   const seen = new Set(picked.map((item) => item.id));
   const places = placeIds
     .map((id) => shops.find((item) => item.id === id && item.kind === "place"))
-    .filter((item): item is Shop => Boolean(item) && !seen.has(item.id));
+    .filter((item): item is Shop => item != null && !seen.has(item.id));
   const anchors = [entrance, ...picked];
   const nearness = (item: Shop) => Math.min(...anchors.map((anchor) => distance(anchor, item)));
   const spare = shops
