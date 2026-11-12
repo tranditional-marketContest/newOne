@@ -10,7 +10,7 @@ import {
   pricePerPerson,
   useMatchingStore,
 } from "@/lib/matching/store";
-import { CURRENT_USER } from "@/lib/matching/types";
+import { LoginCallout } from "@/components/matching/LoginCallout";
 
 export function ChatRoomClient({ id }: { id: string }) {
   const router = useRouter();
@@ -23,7 +23,7 @@ export function ChatRoomClient({ id }: { id: string }) {
     sendMessage,
     confirmMatch,
     completeTrade,
-    joinSeat,
+    viewer,
   } = useMatchingStore();
   const [text, setText] = useState("");
   const [matchedFlash, setMatchedFlash] = useState(false);
@@ -32,7 +32,7 @@ export function ChatRoomClient({ id }: { id: string }) {
 
   const post = getPost(id);
   const messages = getMessages(id);
-  const isAuthor = post?.authorId === CURRENT_USER.id;
+  const isAuthor = Boolean(viewer && post?.authorId === viewer.id);
   const incoming = post ? hasIncomingChat(post.id) : false;
 
   useEffect(() => {
@@ -48,9 +48,20 @@ export function ChatRoomClient({ id }: { id: string }) {
     if (!post || post.status !== "open") return false;
     return messages.some(
       (message) =>
-        message.senderId !== CURRENT_USER.id && message.senderId !== "system",
+        message.senderId !== viewer?.id && message.senderId !== "system",
     );
-  }, [messages, post]);
+  }, [messages, post, viewer?.id]);
+
+  if (!viewer && ready) {
+    return (
+      <main className="min-h-full">
+        <MatchingHeader backHref="/matching" title="1대1 채팅" showBell={false} />
+        <div className="px-5 py-8">
+          <LoginCallout title="로그인하면 1대1 채팅을 할 수 있어요" />
+        </div>
+      </main>
+    );
+  }
 
   if (!ready) {
     return (
@@ -111,8 +122,7 @@ export function ChatRoomClient({ id }: { id: string }) {
   };
 
   const handleConfirm = () => {
-    joinSeat(post.id);
-    confirmMatch(post.id);
+    void confirmMatch(post.id);
     setMatchedFlash(true);
     window.setTimeout(() => {
       router.push("/matching/mine");
@@ -122,7 +132,7 @@ export function ChatRoomClient({ id }: { id: string }) {
   const counterpart = isAuthor
     ? messages.find(
         (message) =>
-          message.senderId !== CURRENT_USER.id && message.senderId !== "system",
+          message.senderId !== viewer?.id && message.senderId !== "system",
       )?.senderName ?? "반띵 이웃"
     : post.authorName;
 
@@ -157,7 +167,7 @@ export function ChatRoomClient({ id }: { id: string }) {
         ) : null}
 
         {messages.map((message) => {
-          const mine = message.senderId === CURRENT_USER.id;
+          const mine = message.senderId === viewer?.id;
           const system = message.senderId === "system";
 
           if (system) {

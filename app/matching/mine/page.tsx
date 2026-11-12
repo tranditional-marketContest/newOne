@@ -13,7 +13,8 @@ import {
   pricePerPerson,
   useMatchingStore,
 } from "@/lib/matching/store";
-import { CURRENT_USER, type MatchingPost } from "@/lib/matching/types";
+import { LoginCallout } from "@/components/matching/LoginCallout";
+import type { MatchingPost } from "@/lib/matching/types";
 
 type PendingAction =
   | { type: "delete"; post: MatchingPost }
@@ -26,24 +27,32 @@ export default function MyMatchingPage() {
     myActivePosts,
     myInProgressPosts,
     myOpenPosts,
+    myPastPosts,
     chatNotifyCount,
     hasIncomingChat,
     isChatUnread,
     completeTrade,
     deletePost,
+    viewer,
   } = useMatchingStore();
   const [alertOpen, setAlertOpen] = useState(false);
   const [editPost, setEditPost] = useState<MatchingPost | null>(null);
   const [pending, setPending] = useState<PendingAction>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleConfirmPending = () => {
+  const handleConfirmPending = async () => {
     if (!pending) return;
-    if (pending.type === "delete") {
-      deletePost(pending.post.id);
-    } else {
-      completeTrade(pending.post.id);
+    setActionError(null);
+    try {
+      if (pending.type === "delete") {
+        await deletePost(pending.post.id);
+      } else {
+        await completeTrade(pending.post.id);
+      }
+      setPending(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "처리하지 못했습니다.");
     }
-    setPending(null);
   };
 
   return (
@@ -83,11 +92,15 @@ export default function MyMatchingPage() {
           </div>
         </div>
 
+        <div className="mb-5 empty:mb-0">
+          <LoginCallout title="로그인하면 내가 올린 글과 받은 채팅을 볼 수 있어요" />
+        </div>
+
         {!ready ? (
           <div className="rounded-2xl border border-hanji-soft bg-hanji-main p-8 text-center text-hanok-bright">
             불러오는 중…
           </div>
-        ) : myActivePosts.length === 0 ? (
+        ) : myActivePosts.length === 0 && myPastPosts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-hanok-light bg-hanji-main p-8 text-center">
             <p className="font-[family-name:var(--font-display)] text-lg font-bold text-hanok-dark">
               아직 나의 반띵이 없어요
@@ -110,7 +123,7 @@ export default function MyMatchingPage() {
                   진행 중인 반띵 제안
                 </h2>
                 {myInProgressPosts.map((post) => {
-                  const isAuthor = post.authorId === CURRENT_USER.id;
+                  const isAuthor = viewer?.id === post.authorId;
                   const canChat = !isAuthor || hasIncomingChat(post.id);
                   return (
                     <article
@@ -180,7 +193,7 @@ export default function MyMatchingPage() {
                   내가 올린 · 참여 중인 모집
                 </h2>
                 {myOpenPosts.map((post) => {
-                  const isAuthor = post.authorId === CURRENT_USER.id;
+                  const isAuthor = viewer?.id === post.authorId;
                   const unread = isChatUnread(post.id);
                   const incoming = hasIncomingChat(post.id);
                   return (
@@ -258,6 +271,48 @@ export default function MyMatchingPage() {
             ) : null}
           </div>
         )}
+
+        {ready && myPastPosts.length > 0 ? (
+          <section className="mt-8 space-y-3">
+            <h2 className="px-1 font-[family-name:var(--font-display)] text-lg font-bold text-ink">
+              이전 기록들
+            </h2>
+            {myPastPosts.map((post) => {
+              const isAuthor = viewer?.id === post.authorId;
+              return (
+                <article key={post.id} className="space-y-2 rounded-[1.2rem] p-1">
+                  <div className="flex items-center justify-between px-1 text-xs text-hanok-bright">
+                    <span>모집 시간 종료</span>
+                    <span>
+                      1인 {formatPrice(pricePerPerson(post.totalPrice, post.peopleNeeded))}
+                    </span>
+                  </div>
+                  <PostCard post={post} showRemaining={false} matchedLabel="모집 마감" />
+                  <div className="flex flex-wrap gap-2 px-1">
+                    {isAuthor ? (
+                      <button
+                        type="button"
+                        onClick={() => setPending({ type: "delete", post })}
+                        className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger"
+                      >
+                        삭제
+                      </button>
+                    ) : null}
+                    <Link
+                      href={`/matching/${post.id}`}
+                      className="rounded-full px-3 py-1.5 text-xs font-bold text-hanok-deep underline"
+                    >
+                      상세 보기
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        ) : null}
+        {actionError ? (
+          <p className="mt-4 text-center text-sm text-danger">{actionError}</p>
+        ) : null}
       </section>
 
       <AlertSettings open={alertOpen} onClose={() => setAlertOpen(false)} />

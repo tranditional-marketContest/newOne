@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LoginCallout } from "@/components/matching/LoginCallout";
 import { CATEGORIES, CATEGORY_EMOJI } from "@/lib/matching/categories";
 import {
   formatPrice,
@@ -43,9 +44,10 @@ interface CreateWizardProps {
 
 export function CreateWizard({ open, onClose, editPost = null }: CreateWizardProps) {
   const router = useRouter();
-  const { createPost, updatePost } = useMatchingStore();
+  const { createPost, updatePost, viewer } = useMatchingStore();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<CreateDraft>(EMPTY_DRAFT);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const isEditing = Boolean(editPost);
 
   useEffect(() => {
@@ -78,16 +80,21 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
     onClose();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setSubmitError(null);
     const payload = { ...draft, itemName: draft.menuName.trim() };
-    if (isEditing && editPost) {
-      updatePost(editPost.id, payload);
+    try {
+      if (isEditing && editPost) {
+        await updatePost(editPost.id, payload);
+        handleClose();
+        return;
+      }
+      const post = await createPost(payload);
       handleClose();
-      return;
+      router.push(`/matching/${post.id}`);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "등록에 실패했습니다.");
     }
-    const post = createPost(payload);
-    handleClose();
-    router.push(`/matching/${post.id}`);
   };
 
   return (
@@ -121,6 +128,7 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
           </button>
         </header>
 
+        {viewer ? (
         <div className="px-5 pt-4">
           <ol className="grid grid-cols-4 gap-2">
             {STEPS.map((label, index) => {
@@ -150,22 +158,31 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
           </ol>
         </div>
 
+        ) : null}
+
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {step === 0 ? (
+          {viewer ? null : (
+            <LoginCallout title="로그인하면 반띵 글을 올릴 수 있어요" />
+          )}
+          {viewer && step === 0 ? (
             <StepItem draft={draft} update={update} />
           ) : null}
-          {step === 1 ? (
+          {viewer && step === 1 ? (
             <StepStore draft={draft} update={update} />
           ) : null}
-          {step === 2 ? (
+          {viewer && step === 2 ? (
             <StepPeople draft={draft} update={update} perPerson={perPerson} />
           ) : null}
-          {step === 3 ? (
+          {viewer && step === 3 ? (
             <StepDeadline draft={draft} update={update} perPerson={perPerson} />
           ) : null}
         </div>
 
+        {viewer ? (
         <footer className="border-t border-hanji-soft p-4">
+          {submitError ? (
+            <p className="mb-2 text-center text-sm text-danger">{submitError}</p>
+          ) : null}
           {step < 3 ? (
             <button
               type="button"
@@ -195,6 +212,7 @@ export function CreateWizard({ open, onClose, editPost = null }: CreateWizardPro
             </button>
           ) : null}
         </footer>
+        ) : null}
       </section>
     </div>
   );

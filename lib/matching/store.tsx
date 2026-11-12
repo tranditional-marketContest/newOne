@@ -6,14 +6,26 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { CATEGORIES, CATEGORY_EMOJI, migrateCategory } from "./categories";
-import { createFreshSeedMessages, createFreshSeedPosts } from "./seed";
+import { useAuth } from "@/hooks/useAuth";
+import { getSupabase } from "@/lib/supabase/client";
+import { CATEGORIES, CATEGORY_EMOJI } from "./categories";
 import {
-  CURRENT_USER,
+  deleteMatchingPost,
+  fetchMatchingBoard,
+  insertMatchingMessage,
+  insertMatchingPost,
+  rowToMessage,
+  rowToPost,
+  updateMatchingPost,
+} from "./remote";
+import {
   DEADLINE_MINUTES,
+  isUntilDeleted,
+  remainingMinutes,
   type AlertPrefs,
   type CategoryId,
   type ChatMessage,
@@ -23,29 +35,39 @@ import {
   type PushNotification,
 } from "./types";
 
-const STORAGE_KEY = "shinwon-half-half-v4";
+const PREFS_KEY = "shinwon-half-prefs";
 
 const EMPTY_ALERTS: AlertPrefs = {
   categories: [],
   keywords: [],
 };
 
-interface PersistedState {
-  posts: MatchingPost[];
-  messages: ChatMessage[];
+interface PersistedPrefs {
   alerts: AlertPrefs;
   unreadChatPostIds: string[];
   pushNotifications: PushNotification[];
 }
 
+export interface MatchingViewer {
+  id: string;
+  name: string;
+}
+
 interface MatchingStoreValue {
   ready: boolean;
+  viewer: MatchingViewer | null;
+  authLoading: boolean;
+  authBusy: boolean;
+  authError: string | null;
+  loadError: string | null;
+  loginWithGoogle: () => Promise<void>;
   now: number;
   posts: MatchingPost[];
   openPosts: MatchingPost[];
   myActivePosts: MatchingPost[];
   myInProgressPosts: MatchingPost[];
   myOpenPosts: MatchingPost[];
+  myPastPosts: MatchingPost[];
   alerts: AlertPrefs;
   alertCount: number;
   pushNotifications: PushNotification[];
@@ -58,12 +80,12 @@ interface MatchingStoreValue {
   markChatRead: (postId: string) => void;
   markPushRead: (id: string) => void;
   markAllPushRead: () => void;
-  createPost: (draft: CreateDraft) => MatchingPost;
-  updatePost: (postId: string, draft: CreateDraft) => MatchingPost | undefined;
-  deletePost: (postId: string) => void;
-  sendMessage: (postId: string, text: string) => void;
-  confirmMatch: (postId: string) => void;
-  completeTrade: (postId: string) => void;
+  createPost: (draft: CreateDraft) => Promise<MatchingPost>;
+  updatePost: (postId: string, draft: CreateDraft) => Promise<MatchingPost | undefined>;
+  deletePost: (postId: string) => Promise<void>;
+  sendMessage: (postId: string, text: string) => Promise<void>;
+  confirmMatch: (postId: string) => Promise<void>;
+  completeTrade: (postId: string) => Promise<void>;
   joinSeat: (postId: string) => void;
   toggleAlertCategory: (category: Exclude<CategoryId, "all">) => void;
   addAlertKeyword: (keyword: string) => void;
@@ -84,8 +106,8 @@ function categoryLabel(id: Exclude<CategoryId, "all">) {
 }
 
 /** Own posts never create push alerts. */
-function matchAlertReason(post: MatchingPost, alerts: AlertPrefs) {
-  if (post.authorId === CURRENT_USER.id) return null;
+function matchAlertReason(post: MatchingPost, alerts: AlertPrefs, userId: string | null) {
+  if (!userId || post.authorId === userId) return null;
 
   if (alerts.categories.includes(post.category)) {
     return `카테고리 · ${categoryLabel(post.category)}`;
@@ -115,155 +137,70 @@ function buildPushNotification(
   };
 }
 
-function remainingMinutes(post: MatchingPost, now: number) {
-  if (!post.createdAt || !now) return post.deadlineMinutes;
-  const elapsed = (now - new Date(post.createdAt).getTime()) / 60_000;
-  return Math.max(0, Math.floor(post.deadlineMinutes - elapsed));
+function isStillListed(post: MatchingPost, now: number) {
+  return remainingMinutes(post.deadlineMinutes, post.createdAt, now) > 0;
 }
 
-function isMine(post: MatchingPost) {
-  return (
-    post.authorId === CURRENT_USER.id ||
-    post.participantIds.includes(CURRENT_USER.id)
-  );
+function isMine(post: MatchingPost, userId: string | null) {
+  if (!userId) return false;
+  return post.authorId === userId || post.participantIds.includes(userId);
 }
 
-function normalizePost(post: MatchingPost): MatchingPost {
-  const { discountLabel: _removed, ...rest } = post as MatchingPost & {
-    discountLabel?: string;
-  };
-  return {
-    ...rest,
-    category: migrateCategory(String(rest.category), rest.id),
-    participantIds:
-      rest.participantIds?.length > 0
-        ? rest.participantIds
-        : [rest.authorId],
-  };
+function prefsKey(userId: string | null) {
+  return `${PREFS_KEY}-${userId ?? "guest"}`;
 }
 
-function ensureDemoPosts(posts: MatchingPost[]) {
-  const fresh = createFreshSeedPosts();
-  const next = [...posts];
-
-  const ensure = (id: string) => {
-    if (next.some((post) => post.id === id)) return;
-    const sample = fresh.find((post) => post.id === id);
-    if (sample) next.unshift(sample);
-  };
-
-  if (!next.some((post) => post.status === "matched" && isMine(post))) {
-    ensure("post-matched-1");
-  }
-  if (
-    !next.some(
-      (post) => post.status === "open" && post.authorId === CURRENT_USER.id,
-    )
-  ) {
-    ensure("post-mine-open");
-  }
-
-  ensure("post-6");
-  ensure("post-7");
-
-  return next;
-}
-
-function dedupeMessages(messages: ChatMessage[]) {
-  const seen = new Set<string>();
-  return messages.filter((message) => {
-    if (seen.has(message.id)) return false;
-    seen.add(message.id);
-    return true;
-  });
-}
-
-function ensureDemoMessages(
-  posts: MatchingPost[],
-  messages: ChatMessage[],
-): { messages: ChatMessage[]; newlyUnreadPostIds: string[] } {
-  const next = dedupeMessages(messages);
-  const newlyUnreadPostIds: string[] = [];
-  const seedMessages = createFreshSeedMessages();
-
-  for (const seed of seedMessages) {
-    if (!posts.some((post) => post.id === seed.postId)) continue;
-    if (!next.some((message) => message.id === seed.id)) {
-      next.push(seed);
-      newlyUnreadPostIds.push(seed.postId);
-    }
-  }
-
-  return { messages: next, newlyUnreadPostIds };
-}
-
-function loadState(): PersistedState {
+function loadPrefs(userId: string | null): PersistedPrefs {
   try {
-    const raw =
-      window.localStorage.getItem(STORAGE_KEY) ??
-      window.localStorage.getItem("shinwon-half-half-v3") ??
-      window.localStorage.getItem("shinwon-half-half-v2") ??
-      window.localStorage.getItem("shinwon-half-half-v1");
+    const raw = window.localStorage.getItem(prefsKey(userId));
     if (!raw) {
-      const posts = createFreshSeedPosts();
-      const seeded = ensureDemoMessages(posts, []);
-      return {
-        posts,
-        messages: seeded.messages,
-        alerts: EMPTY_ALERTS,
-        unreadChatPostIds: seeded.newlyUnreadPostIds,
-        pushNotifications: [],
-      };
+      return { alerts: EMPTY_ALERTS, unreadChatPostIds: [], pushNotifications: [] };
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedState>;
-    if (!parsed.posts?.length) {
-      const posts = createFreshSeedPosts();
-      const seeded = ensureDemoMessages(posts, []);
-      return {
-        posts,
-        messages: seeded.messages,
-        alerts: parsed.alerts ?? EMPTY_ALERTS,
-        unreadChatPostIds: seeded.newlyUnreadPostIds,
-        pushNotifications: parsed.pushNotifications ?? [],
-      };
-    }
-
-    const posts = ensureDemoPosts(parsed.posts.map(normalizePost));
-    const seeded = ensureDemoMessages(posts, parsed.messages ?? []);
-    const existingUnread = Array.isArray(parsed.unreadChatPostIds)
-      ? parsed.unreadChatPostIds
-      : [];
+    const parsed = JSON.parse(raw) as Partial<PersistedPrefs>;
     return {
-      posts,
-      messages: seeded.messages,
       alerts: {
-        categories: (parsed.alerts?.categories ?? []).map((category) =>
-          migrateCategory(String(category)),
-        ),
+        categories: parsed.alerts?.categories ?? [],
         keywords: parsed.alerts?.keywords ?? [],
       },
-      unreadChatPostIds: [
-        ...new Set([...existingUnread, ...seeded.newlyUnreadPostIds]),
-      ],
+      unreadChatPostIds: Array.isArray(parsed.unreadChatPostIds)
+        ? parsed.unreadChatPostIds
+        : [],
       pushNotifications: Array.isArray(parsed.pushNotifications)
         ? parsed.pushNotifications
         : [],
     };
   } catch {
-    const posts = createFreshSeedPosts();
-    const seeded = ensureDemoMessages(posts, []);
-    return {
-      posts,
-      messages: seeded.messages,
-      alerts: EMPTY_ALERTS,
-      unreadChatPostIds: seeded.newlyUnreadPostIds,
-      pushNotifications: [],
-    };
+    return { alerts: EMPTY_ALERTS, unreadChatPostIds: [], pushNotifications: [] };
   }
 }
 
+function upsertById<T extends { id: string }>(list: T[], item: T) {
+  const index = list.findIndex((entry) => entry.id === item.id);
+  if (index < 0) return [item, ...list];
+  const next = list.slice();
+  next[index] = item;
+  return next;
+}
+
 export function MatchingStoreProvider({ children }: { children: ReactNode }) {
+  const {
+    user,
+    loading: authLoading,
+    busy: authBusy,
+    error: authError,
+    loginWithGoogle,
+  } = useAuth();
+  const viewer = useMemo<MatchingViewer | null>(() => {
+    if (!user) return null;
+    const name = user.displayName?.trim() || user.email?.split("@")[0] || "이웃";
+    return { id: user.uid, name };
+  }, [user]);
+  const viewerRef = useRef(viewer);
+  viewerRef.current = viewer;
+  const postsRef = useRef<MatchingPost[]>([]);
+
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [posts, setPosts] = useState<MatchingPost[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -273,59 +210,154 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  useEffect(() => {
-    const state = loadState();
-    setPosts(state.posts);
-    setMessages(state.messages);
-    setAlerts(state.alerts);
-    setUnreadChatPostIds(state.unreadChatPostIds ?? []);
-    setPushNotifications(state.pushNotifications ?? []);
-    setNow(Date.now());
-    setReady(true);
+  postsRef.current = posts;
 
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const prefs = loadPrefs(viewer?.id ?? null);
+    setAlerts(prefs.alerts);
+    setUnreadChatPostIds(prefs.unreadChatPostIds);
+    setPushNotifications(prefs.pushNotifications);
+  }, [authLoading, viewer?.id]);
 
   useEffect(() => {
     if (!ready) return;
     window.localStorage.setItem(
-      STORAGE_KEY,
+      prefsKey(viewer?.id ?? null),
       JSON.stringify({
-        posts,
-        messages,
         alerts,
         unreadChatPostIds,
         pushNotifications,
-      } satisfies PersistedState),
+      } satisfies PersistedPrefs),
     );
-  }, [ready, posts, messages, alerts, unreadChatPostIds, pushNotifications]);
+  }, [ready, viewer?.id, alerts, unreadChatPostIds, pushNotifications]);
 
-  // Create inbox items when others' posts match alert prefs (never for my posts).
   useEffect(() => {
-    if (!ready) return;
+    if (authLoading) return;
+    let stopped = false;
+    const supabase = getSupabase();
+
+    async function refresh() {
+      try {
+        const board = await fetchMatchingBoard();
+        if (stopped) return;
+        setPosts(board.posts);
+        setMessages(board.messages);
+        setLoadError(null);
+      } catch (err) {
+        if (stopped) return;
+        const message = err instanceof Error ? err.message : "글을 불러오지 못했습니다.";
+        setLoadError(
+          message.includes("matching_posts")
+            ? "반띵 글 저장 공간이 아직 없습니다. Supabase에 표를 만든 뒤 다시 열어 주세요."
+            : message,
+        );
+      } finally {
+        if (!stopped) {
+          setNow(Date.now());
+          setReady(true);
+        }
+      }
+    }
+
+    void refresh();
+    if (!supabase) return () => {
+      stopped = true;
+    };
+
+    const channel = supabase
+      .channel("matching-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "matching_posts" },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const id = String((payload.old as { id?: string }).id ?? "");
+            if (!id) return;
+            setPosts((prev) => prev.filter((post) => post.id !== id));
+            return;
+          }
+          const post = rowToPost(payload.new as Parameters<typeof rowToPost>[0]);
+          setPosts((prev) => upsertById(prev, post));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "matching_messages" },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const id = String((payload.old as { id?: string }).id ?? "");
+            if (!id) return;
+            setMessages((prev) => prev.filter((message) => message.id !== id));
+            return;
+          }
+          const message = rowToMessage(payload.new as Parameters<typeof rowToMessage>[0]);
+          setMessages((prev) => upsertById(prev, message));
+          const me = viewerRef.current;
+          const post = postsRef.current.find((item) => item.id === message.postId);
+          if (
+            me &&
+            post?.authorId === me.id &&
+            message.senderId !== me.id &&
+            message.senderId !== "system"
+          ) {
+            setUnreadChatPostIds((prev) =>
+              prev.includes(message.postId) ? prev : [...prev, message.postId],
+            );
+          }
+        },
+      )
+      .subscribe();
+
+    const poll = window.setInterval(() => {
+      void refresh();
+    }, 15000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(poll);
+      void supabase.removeChannel(channel);
+    };
+  }, [authLoading]);
+
+  useEffect(() => {
+    if (!ready || !viewer) return;
     if (alerts.categories.length === 0 && alerts.keywords.length === 0) return;
 
     setPushNotifications((prev) => {
       const additions: PushNotification[] = [];
       for (const post of posts) {
         if (post.status !== "open") continue;
-        if (post.authorId === CURRENT_USER.id) continue;
+        if (post.authorId === viewer.id) continue;
         if (prev.some((item) => item.postId === post.id)) continue;
         if (additions.some((item) => item.postId === post.id)) continue;
-        const reason = matchAlertReason(post, alerts);
+        const reason = matchAlertReason(post, alerts, viewer.id);
         if (!reason) continue;
         additions.push(buildPushNotification(post, reason));
       }
       if (additions.length === 0) return prev;
       return [...additions, ...prev];
     });
-  }, [ready, posts, alerts]);
+  }, [ready, posts, alerts, viewer]);
 
   const openPosts = useMemo(() => {
     if (!ready || !now) return [];
     return posts
-      .filter((post) => post.status === "open" && remainingMinutes(post, now) > 0)
+      .filter((post) => post.status === "open" && isStillListed(post, now))
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -335,28 +367,43 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   const myInProgressPosts = useMemo(() => {
     if (!ready) return [];
     return posts
-      .filter((post) => post.status === "matched" && isMine(post))
+      .filter((post) => post.status === "matched" && isMine(post, viewer?.id ?? null))
       .sort((a, b) => {
         const aTime = new Date(a.matchedAt ?? a.createdAt).getTime();
         const bTime = new Date(b.matchedAt ?? b.createdAt).getTime();
         return bTime - aTime;
       });
-  }, [posts, ready]);
+  }, [posts, ready, viewer?.id]);
 
   const myOpenPosts = useMemo(() => {
-    if (!ready) return [];
+    if (!ready || !now) return [];
     return posts
       .filter(
         (post) =>
           post.status === "open" &&
-          (post.authorId === CURRENT_USER.id ||
-            post.participantIds.includes(CURRENT_USER.id)),
+          isMine(post, viewer?.id ?? null) &&
+          isStillListed(post, now),
       )
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-  }, [posts, ready]);
+  }, [posts, ready, now, viewer?.id]);
+
+  const myPastPosts = useMemo(() => {
+    if (!ready || !now) return [];
+    return posts
+      .filter(
+        (post) =>
+          post.status === "open" &&
+          isMine(post, viewer?.id ?? null) &&
+          !isStillListed(post, now),
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+  }, [posts, ready, now, viewer?.id]);
 
   const myActivePosts = useMemo(
     () => [...myInProgressPosts, ...myOpenPosts],
@@ -376,11 +423,11 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
         posts.some(
           (post) =>
             post.id === postId &&
-            post.authorId === CURRENT_USER.id &&
+            post.authorId === viewer?.id &&
             post.status !== "completed",
         ),
       ).length,
-    [unreadChatPostIds, posts],
+    [unreadChatPostIds, posts, viewer?.id],
   );
 
   const getPost = useCallback(
@@ -411,10 +458,10 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
       messages.some(
         (message) =>
           message.postId === postId &&
-          message.senderId !== CURRENT_USER.id &&
+          message.senderId !== viewer?.id &&
           message.senderId !== "system",
       ),
-    [messages],
+    [messages, viewer?.id],
   );
 
   const isChatUnread = useCallback(
@@ -438,7 +485,14 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const createPost = useCallback((draft: CreateDraft) => {
+  const requireViewer = () => {
+    const current = viewerRef.current;
+    if (!current) throw new Error("로그인 후 이용할 수 있습니다.");
+    return current;
+  };
+
+  const createPost = useCallback(async (draft: CreateDraft) => {
+    const actor = requireViewer();
     if (!draft.category) {
       throw new Error("카테고리를 선택해 주세요.");
     }
@@ -446,7 +500,7 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
     const post: MatchingPost = {
       id: createId("post"),
       category: draft.category,
-      itemName: draft.itemName.trim(),
+      itemName: draft.itemName.trim() || draft.menuName.trim(),
       storeName: draft.storeName.trim(),
       menuName: draft.menuName.trim(),
       totalPrice: draft.totalPrice,
@@ -458,157 +512,111 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
       customPlace:
         draft.meetingPlace === "custom" ? draft.customPlace.trim() : undefined,
       note: draft.note.trim() || undefined,
-      authorId: CURRENT_USER.id,
-      authorName: CURRENT_USER.name,
+      authorId: actor.id,
+      authorName: actor.name,
       status: "open",
       imageEmoji: CATEGORY_EMOJI[draft.category],
-      participantIds: [CURRENT_USER.id],
+      participantIds: [actor.id],
     };
 
-    setPosts((prev) => [post, ...prev]);
-    return post;
+    const saved = await insertMatchingPost(post);
+    setPosts((prev) => upsertById(prev, saved));
+    return saved;
   }, []);
 
-  const updatePost = useCallback((postId: string, draft: CreateDraft) => {
+  const updatePost = useCallback(async (postId: string, draft: CreateDraft) => {
+    const actor = requireViewer();
     if (!draft.category) {
       throw new Error("카테고리를 선택해 주세요.");
     }
-
-    let updated: MatchingPost | undefined;
-    setPosts((prev) =>
-      prev.map((post) => {
-        if (post.id !== postId || post.authorId !== CURRENT_USER.id) return post;
-        if (post.status === "completed") return post;
-
-        updated = {
-          ...post,
-          category: draft.category!,
-          itemName: draft.itemName.trim(),
-          storeName: draft.storeName.trim(),
-          menuName: draft.menuName.trim(),
-          totalPrice: draft.totalPrice,
-          peopleNeeded: Math.max(draft.peopleNeeded, post.peopleJoined),
-          deadlineMinutes: DEADLINE_MINUTES[draft.deadline],
-          meetingPlace: draft.meetingPlace,
-          customPlace:
-            draft.meetingPlace === "custom"
-              ? draft.customPlace.trim()
-              : undefined,
-          note: draft.note.trim() || undefined,
-          imageEmoji: CATEGORY_EMOJI[draft.category!],
-        };
-        return updated;
-      }),
+    const current = postsRef.current.find(
+      (post) => post.id === postId && post.authorId === actor.id,
     );
-    return updated;
+    if (!current || current.status === "completed") return undefined;
+
+    const next: MatchingPost = {
+      ...current,
+      category: draft.category,
+      itemName: draft.itemName.trim() || draft.menuName.trim(),
+      storeName: draft.storeName.trim(),
+      menuName: draft.menuName.trim(),
+      totalPrice: draft.totalPrice,
+      peopleNeeded: Math.max(draft.peopleNeeded, current.peopleJoined),
+      deadlineMinutes: DEADLINE_MINUTES[draft.deadline],
+      meetingPlace: draft.meetingPlace,
+      customPlace:
+        draft.meetingPlace === "custom" ? draft.customPlace.trim() : undefined,
+      note: draft.note.trim() || undefined,
+      imageEmoji: CATEGORY_EMOJI[draft.category],
+    };
+    const saved = await updateMatchingPost(next);
+    setPosts((prev) => upsertById(prev, saved));
+    return saved;
   }, []);
 
-  const deletePost = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.filter(
-        (post) => !(post.id === postId && post.authorId === CURRENT_USER.id),
-      ),
-    );
+  const deletePost = useCallback(async (postId: string) => {
+    const actor = requireViewer();
+    const current = postsRef.current.find((post) => post.id === postId);
+    if (!current || current.authorId !== actor.id) return;
+    await deleteMatchingPost(postId);
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
     setMessages((prev) => prev.filter((message) => message.postId !== postId));
   }, []);
 
-  const sendMessage = useCallback((postId: string, text: string) => {
+  const sendMessage = useCallback(async (postId: string, text: string) => {
+    const actor = requireViewer();
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (!postsRef.current.some((item) => item.id === postId)) return;
 
-    const post = posts.find((item) => item.id === postId);
-    if (!post) return;
-
-    const mine: ChatMessage = {
+    const saved = await insertMatchingMessage({
       id: createId("msg"),
       postId,
-      senderId: CURRENT_USER.id,
-      senderName: CURRENT_USER.name,
+      senderId: actor.id,
+      senderName: actor.name,
       text: trimmed,
       createdAt: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, mine]);
-
-    // Demo auto-reply — keep side effects out of setState updaters
-    // so React Strict Mode does not schedule duplicate replies.
-    if (post.authorId !== CURRENT_USER.id) {
-      const replyId = createId("msg-reply");
-      window.setTimeout(() => {
-        const reply: ChatMessage = {
-          id: replyId,
-          postId,
-          senderId: post.authorId,
-          senderName: post.authorName,
-          text: "좋아요! 시간·장소 맞으면 매칭 확정할까요?",
-          createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) =>
-          prev.some((message) => message.id === replyId)
-            ? prev
-            : [...prev, reply],
-        );
-      }, 900);
-    }
-  }, [posts]);
-
-  const joinSeat = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.map((post) => {
-        if (post.id !== postId || post.status !== "open") return post;
-        if (post.peopleJoined >= post.peopleNeeded) return post;
-        const participantIds = post.participantIds.includes(CURRENT_USER.id)
-          ? post.participantIds
-          : [...post.participantIds, CURRENT_USER.id];
-        return {
-          ...post,
-          peopleJoined: post.peopleJoined + 1,
-          participantIds,
-        };
-      }),
-    );
+    });
+    setMessages((prev) => upsertById(prev, saved));
   }, []);
 
-  const confirmMatch = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.map((post) => {
-        if (post.id !== postId) return post;
-        const participantIds = post.participantIds.includes(CURRENT_USER.id)
-          ? post.participantIds
-          : [...post.participantIds, CURRENT_USER.id];
-        return {
-          ...post,
-          status: "matched",
-          peopleJoined: post.peopleNeeded,
-          participantIds,
-          matchedAt: new Date().toISOString(),
-        };
-      }),
-    );
+  const joinSeat = useCallback((_postId: string) => {
+    // 자리 확정은 confirmMatch에서 한 번에 저장한다.
+  }, []);
 
-    const system: ChatMessage = {
+  const confirmMatch = useCallback(async (postId: string) => {
+    const actor = requireViewer();
+    const current = postsRef.current.find((post) => post.id === postId);
+    if (!current || current.status !== "open") return;
+    const participantIds = current.participantIds.includes(actor.id)
+      ? current.participantIds
+      : [...current.participantIds, actor.id];
+    const next: MatchingPost = {
+      ...current,
+      status: "matched",
+      peopleJoined: current.peopleNeeded,
+      participantIds,
+      matchedAt: new Date().toISOString(),
+    };
+    const saved = await updateMatchingPost(next);
+    setPosts((prev) => upsertById(prev, saved));
+    const system = await insertMatchingMessage({
       id: createId("msg-matched"),
       postId,
       senderId: "system",
       senderName: "시스템",
       text: "매칭이 확정되었습니다. 약속을 마치면 거래 완료로 바꿔 주세요.",
       createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) =>
-      prev.some((message) => message.id === system.id)
-        ? prev
-        : [...prev, system],
-    );
+    });
+    setMessages((prev) => upsertById(prev, system));
   }, []);
 
-  const completeTrade = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.map((post) => {
-        if (post.id !== postId || !isMine(post)) return post;
-        if (post.status !== "matched") return post;
-        return { ...post, status: "completed" };
-      }),
-    );
+  const completeTrade = useCallback(async (postId: string) => {
+    const actor = requireViewer();
+    const current = postsRef.current.find((post) => post.id === postId);
+    if (!current || !isMine(current, actor.id) || current.status !== "matched") return;
+    const saved = await updateMatchingPost({ ...current, status: "completed" });
+    setPosts((prev) => upsertById(prev, saved));
   }, []);
 
   const toggleAlertCategory = useCallback(
@@ -645,12 +653,19 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<MatchingStoreValue>(
     () => ({
       ready,
+      viewer,
+      authLoading,
+      authBusy,
+      authError,
+      loadError,
+      loginWithGoogle,
       now,
       posts,
       openPosts,
       myActivePosts,
       myInProgressPosts,
       myOpenPosts,
+      myPastPosts,
       alerts,
       alertCount,
       pushNotifications,
@@ -676,12 +691,19 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready,
+      viewer,
+      authLoading,
+      authBusy,
+      authError,
+      loadError,
+      loginWithGoogle,
       now,
       posts,
       openPosts,
       myActivePosts,
       myInProgressPosts,
       myOpenPosts,
+      myPastPosts,
       alerts,
       alertCount,
       pushNotifications,
@@ -743,7 +765,8 @@ export function placeLabel(place: MeetingPlace, customPlace?: string) {
 }
 
 export function getRemainingLabel(post: MatchingPost, now: number) {
-  const left = remainingMinutes(post, now);
+  if (isUntilDeleted(post.deadlineMinutes)) return "삭제 전까지";
+  const left = remainingMinutes(post.deadlineMinutes, post.createdAt, now);
   if (!now) return "계산 중";
   if (left <= 0) return "마감";
   if (left < 60) return `${left}분 남음`;

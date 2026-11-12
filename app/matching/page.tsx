@@ -6,13 +6,14 @@ import { AlertSettings } from "@/components/matching/AlertSettings";
 import { CategoryBar } from "@/components/matching/CategoryBar";
 import { CreateWizard } from "@/components/matching/CreateWizard";
 import { MatchingHeader } from "@/components/matching/MatchingHeader";
+import { LoginCallout } from "@/components/matching/LoginCallout";
 import { PostCard } from "@/components/matching/PostCard";
 import { CATEGORIES } from "@/lib/matching/categories";
 import { useMatchingStore } from "@/lib/matching/store";
 import type { CategoryId } from "@/lib/matching/types";
 
 export default function MatchingListPage() {
-  const { ready, openPosts, myActivePosts, chatNotifyCount } = useMatchingStore();
+  const { ready, openPosts, myActivePosts, chatNotifyCount, loadError } = useMatchingStore();
   const [category, setCategory] = useState<CategoryId>("all");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
@@ -42,6 +43,12 @@ export default function MatchingListPage() {
       <CategoryBar value={category} onChange={setCategory} counts={counts} />
 
       <section className="px-4 pt-5">
+        <div className="mb-4 empty:mb-0">
+          <LoginCallout compact title="로그인하면 글을 올리고 다른 사용자와 채팅할 수 있어요" />
+        </div>
+        {loadError ? (
+          <p className="mb-4 rounded-2xl bg-[#fff4ef] px-4 py-3 text-sm text-danger">{loadError}</p>
+        ) : null}
         <div className="mb-4 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="min-w-0 font-[family-name:var(--font-display)] text-[1.35rem] font-bold leading-tight text-ink">

@@ -9,10 +9,10 @@ import {
   pricePerPerson,
   useMatchingStore,
 } from "@/lib/matching/store";
-import { CURRENT_USER } from "@/lib/matching/types";
+import { LoginCallout } from "@/components/matching/LoginCallout";
 
 export function PostDetailClient({ id }: { id: string }) {
-  const { ready, now, getPost } = useMatchingStore();
+  const { ready, now, getPost, viewer } = useMatchingStore();
   const post = getPost(id);
 
   if (!ready) {
@@ -42,7 +42,7 @@ export function PostDetailClient({ id }: { id: string }) {
 
   const perPerson = pricePerPerson(post.totalPrice, post.peopleNeeded);
   const seatsLeft = Math.max(post.peopleNeeded - post.peopleJoined, 0);
-  const isAuthor = post.authorId === CURRENT_USER.id;
+  const isAuthor = Boolean(viewer && post.authorId === viewer.id);
   const canStartChat =
     !isAuthor && (post.status === "open" || post.status === "matched");
 
@@ -141,6 +141,8 @@ export function PostDetailClient({ id }: { id: string }) {
           >
             나의 반띵에서 연락 확인
           </Link>
+        ) : !viewer ? (
+          <LoginCallout title="로그인하면 작성자에게 1대1 채팅을 보낼 수 있어요" />
         ) : canStartChat ? (
           <Link
             href={`/matching/${post.id}/chat`}
