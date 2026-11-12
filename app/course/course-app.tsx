@@ -283,7 +283,7 @@ export function CourseApp() {
               key={item.id}
               title={item.name}
               className="absolute z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#16a34a] text-white shadow-[0_0_0_3px_rgba(22,163,74,0.25)]"
-              style={{ ...point(item), scale: 1 / scale }}
+              style={point(item)}
             >
               <CategoryIcon category="수변" className="size-4" />
             </span>
@@ -293,7 +293,7 @@ export function CourseApp() {
               key={item.id}
               title={item.name}
               className="absolute z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#e23a2b] text-white shadow-[0_0_0_3px_rgba(226,58,43,0.22)]"
-              style={{ ...point(item), scale: 1 / scale }}
+              style={point(item)}
             >
               <CategoryIcon category={item.category} className="size-4" />
             </span>
