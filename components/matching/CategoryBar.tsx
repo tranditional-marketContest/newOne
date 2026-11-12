@@ -36,7 +36,7 @@ export function CategoryBar({ value, onChange, counts }: CategoryBarProps) {
   }, []);
 
   return (
-    <div className="min-w-0 w-full overflow-hidden border-b border-hanji-soft bg-hanji-warm/80 py-3">
+    <div className="min-w-0 w-full shrink-0 overflow-hidden border-b border-hanji-soft bg-hanji-warm/80 py-3">
       <div
         ref={scrollerRef}
         className="category-scroll flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain px-3 pb-2 touch-pan-x"

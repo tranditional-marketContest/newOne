@@ -38,7 +38,7 @@ export default function MatchingListPage() {
   }, [openPosts]);
 
   return (
-    <main className="relative flex min-h-full w-full min-w-0 max-w-full flex-col overflow-x-hidden pb-28">
+    <main className="relative flex min-h-full w-full min-w-0 max-w-full shrink-0 flex-col overflow-x-hidden pb-28 [&>*]:shrink-0">
       <MatchingHeader backHref="/" onBellClick={() => setAlertOpen(true)} />
       <CategoryBar value={category} onChange={setCategory} counts={counts} />
 
