@@ -75,6 +75,8 @@ export function CourseApp() {
   const [liveStores, setLiveStores] = useState<Store[]>([]);
   const [storesReady, setStoresReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const zoomFocusRef = useRef<{ x: number; y: number } | null>(null);
   const chatPanelRef = useRef<HTMLElement>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ width: 0, height: 0 });
@@ -94,18 +96,26 @@ export function CourseApp() {
 
   function zoomBy(factor: number) {
     const el = viewportRef.current;
-    if (!el) return;
+    const map = mapRef.current;
+    if (!el || !map || map.offsetWidth === 0 || map.offsetHeight === 0) return;
     const next = Math.min(MAX_SCALE, Math.max(minScale, scale * factor));
     if (next === scale) return;
-    const ratio = next / scale;
-    const centerX = el.scrollLeft + el.clientWidth / 2;
-    const centerY = el.scrollTop + el.clientHeight / 2;
+    zoomFocusRef.current = {
+      x: (el.scrollLeft + el.clientWidth / 2 - map.offsetLeft) / map.offsetWidth,
+      y: (el.scrollTop + el.clientHeight / 2 - map.offsetTop) / map.offsetHeight,
+    };
     setScale(next);
-    window.requestAnimationFrame(() => {
-      el.scrollLeft = centerX * ratio - el.clientWidth / 2;
-      el.scrollTop = centerY * ratio - el.clientHeight / 2;
-    });
   }
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    const map = mapRef.current;
+    const focus = zoomFocusRef.current;
+    if (!el || !map || !focus) return;
+    zoomFocusRef.current = null;
+    el.scrollLeft = map.offsetLeft + focus.x * map.offsetWidth - el.clientWidth / 2;
+    el.scrollTop = map.offsetTop + focus.y * map.offsetHeight - el.clientHeight / 2;
+  }, [scale]);
 
   useEffect(() => {
     if (phase !== "ask") return;
@@ -235,10 +245,12 @@ export function CourseApp() {
           role="application"
           aria-label="지도"
         >
+        <div className="flex min-h-full min-w-full items-center justify-center">
         <div
-          className="relative"
+          ref={mapRef}
+          className="relative shrink-0"
           style={{
-            width: `${scale * 100}%`,
+            width: view.width > 0 ? view.width * scale : "100%",
             aspectRatio: `1 / ${MAP_RATIO}`,
           }}
         >
@@ -286,6 +298,7 @@ export function CourseApp() {
               <CategoryIcon category={item.category} className="size-4" />
             </span>
           ))}
+        </div>
         </div>
         </div>
 

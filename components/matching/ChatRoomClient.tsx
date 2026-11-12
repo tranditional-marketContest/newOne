@@ -26,7 +26,7 @@ export function ChatRoomClient({ id }: { id: string }) {
     viewer,
   } = useMatchingStore();
   const [text, setText] = useState("");
-  const [matchedFlash, setMatchedFlash] = useState(false);
+  const [seatFlash, setSeatFlash] = useState<null | "one" | "full">(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -45,12 +45,16 @@ export function ChatRoomClient({ id }: { id: string }) {
   }, [post?.id, isAuthor, incoming, markChatRead]);
 
   const canConfirm = useMemo(() => {
-    if (!post || post.status !== "open") return false;
-    return messages.some(
+    if (!post || post.status !== "open" || !viewer) return false;
+    const waiting = messages.some(
       (message) =>
-        message.senderId !== viewer?.id && message.senderId !== "system",
+        message.senderId !== "system" &&
+        message.senderId !== post.authorId &&
+        !post.participantIds.includes(message.senderId),
     );
-  }, [messages, post, viewer?.id]);
+    if (viewer.id === post.authorId) return waiting;
+    return waiting && messages.some((message) => message.senderId === viewer.id);
+  }, [messages, post, viewer]);
 
   if (!viewer && ready) {
     return (
@@ -122,11 +126,14 @@ export function ChatRoomClient({ id }: { id: string }) {
   };
 
   const handleConfirm = () => {
-    void confirmMatch(post.id);
-    setMatchedFlash(true);
-    window.setTimeout(() => {
-      router.push("/matching/mine");
-    }, 1400);
+    void confirmMatch(post.id).then((result) => {
+      if (result !== "filled" && result !== "full") return;
+      setSeatFlash(result === "full" ? "full" : "one");
+      window.setTimeout(() => {
+        if (result === "full") router.push("/matching/mine");
+        else setSeatFlash(null);
+      }, 1400);
+    });
   };
 
   const counterpart = isAuthor
@@ -157,7 +164,7 @@ export function ChatRoomClient({ id }: { id: string }) {
 
       <section className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         <div className="rounded-2xl border border-dashed border-hanok-light bg-hanji-warm/70 px-4 py-3 text-center text-xs text-hanok-deep">
-          시간·장소를 맞춘 뒤 매칭을 확정하면 구인 글이 목록에서 내려갑니다.
+          매칭을 확정하면 자리가 하나씩 채워집니다. 자리가 다 차면 구인 글이 목록에서 내려갑니다.
         </div>
 
         {messages.length === 0 ? (
@@ -206,12 +213,16 @@ export function ChatRoomClient({ id }: { id: string }) {
         <div ref={bottomRef} />
       </section>
 
-      {matchedFlash ? (
+      {seatFlash ? (
         <div className="fade-up absolute inset-x-4 top-1/3 z-30 rounded-[1.4rem] bg-hanok-darkest px-5 py-6 text-center text-hanji-main shadow-2xl">
           <p className="font-[family-name:var(--font-display)] text-2xl font-bold">
-            매칭 완료!
+            {seatFlash === "full" ? "모집 완료!" : "한 자리 확정"}
           </p>
-          <p className="mt-2 text-sm text-hanji-soft">약속 장소에서 만나요</p>
+          <p className="mt-2 text-sm text-hanji-soft">
+            {seatFlash === "full"
+              ? "자리가 모두 찼어요. 약속 장소에서 만나요."
+              : "이 채팅으로 한 자리만 채워졌어요."}
+          </p>
         </div>
       ) : null}
 

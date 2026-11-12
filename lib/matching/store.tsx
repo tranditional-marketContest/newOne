@@ -84,7 +84,7 @@ interface MatchingStoreValue {
   updatePost: (postId: string, draft: CreateDraft) => Promise<MatchingPost | undefined>;
   deletePost: (postId: string) => Promise<void>;
   sendMessage: (postId: string, text: string) => Promise<void>;
-  confirmMatch: (postId: string) => Promise<void>;
+  confirmMatch: (postId: string) => Promise<"filled" | "full" | "already" | "none">;
   completeTrade: (postId: string) => Promise<void>;
   joinSeat: (postId: string) => void;
   toggleAlertCategory: (category: Exclude<CategoryId, "all">) => void;
@@ -198,6 +198,7 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   const viewerRef = useRef(viewer);
   viewerRef.current = viewer;
   const postsRef = useRef<MatchingPost[]>([]);
+  const messagesRef = useRef<ChatMessage[]>([]);
 
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -211,6 +212,7 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   );
 
   postsRef.current = posts;
+  messagesRef.current = messages;
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -587,16 +589,35 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
   const confirmMatch = useCallback(async (postId: string) => {
     const actor = requireViewer();
     const current = postsRef.current.find((post) => post.id === postId);
-    if (!current || current.status !== "open") return;
-    const participantIds = current.participantIds.includes(actor.id)
-      ? current.participantIds
-      : [...current.participantIds, actor.id];
+    if (!current || current.status !== "open") return "none" as const;
+    const chatters = messagesRef.current
+      .filter(
+        (message) =>
+          message.postId === postId &&
+          message.senderId !== "system" &&
+          message.senderId !== current.authorId,
+      )
+      .map((message) => message.senderId);
+    const pending = [...new Set(chatters)].filter(
+      (id) => !current.participantIds.includes(id),
+    );
+    const joinerId =
+      actor.id === current.authorId
+        ? pending.at(-1)
+        : pending.includes(actor.id)
+          ? actor.id
+          : undefined;
+    if (!joinerId) return "already" as const;
+
+    const peopleJoined = Math.min(current.peopleJoined + 1, current.peopleNeeded);
+    const filled = peopleJoined >= current.peopleNeeded;
+    const seatsLeft = current.peopleNeeded - peopleJoined;
     const next: MatchingPost = {
       ...current,
-      status: "matched",
-      peopleJoined: current.peopleNeeded,
-      participantIds,
-      matchedAt: new Date().toISOString(),
+      status: filled ? "matched" : "open",
+      peopleJoined,
+      participantIds: [...current.participantIds, joinerId],
+      matchedAt: filled ? new Date().toISOString() : current.matchedAt,
     };
     const saved = await updateMatchingPost(next);
     setPosts((prev) => upsertById(prev, saved));
@@ -605,10 +626,13 @@ export function MatchingStoreProvider({ children }: { children: ReactNode }) {
       postId,
       senderId: "system",
       senderName: "시스템",
-      text: "매칭이 확정되었습니다. 약속을 마치면 거래 완료로 바꿔 주세요.",
+      text: filled
+        ? "자리가 모두 찼습니다. 약속을 마치면 거래 완료로 바꿔 주세요."
+        : `한 자리가 채워졌습니다. ${seatsLeft}자리 남았습니다.`,
       createdAt: new Date().toISOString(),
     });
     setMessages((prev) => upsertById(prev, system));
+    return filled ? ("full" as const) : ("filled" as const);
   }, []);
 
   const completeTrade = useCallback(async (postId: string) => {
